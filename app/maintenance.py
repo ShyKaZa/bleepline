@@ -1,4 +1,4 @@
-"""What Voice Guard has put on this PC, and removing it again. Standard library only."""
+"""What Bleepline has put on this PC, and removing it again. Standard library only."""
 import shutil
 from pathlib import Path
 
@@ -27,7 +27,7 @@ def human_size(n: int) -> str:
 
 
 def storage_items() -> list[tuple[str, str, int]]:
-    """(key, label, bytes) for each thing Voice Guard downloaded or created that is present."""
+    """(key, label, bytes) for each thing Bleepline downloaded or created that is present."""
     items = []
     for name in st.installed_models():
         kind = "Speech model" if name in st.MODEL_CATALOG else "Your model"
@@ -63,9 +63,10 @@ def remove_item(key: str) -> None:
 
 
 def remove_obs_plugin() -> None:
-    plugin_dir = st.obs_plugin_target().parents[2]  # ...\obs-studio\plugins\voice-guard-filter
-    if plugin_dir.exists():
-        shutil.rmtree(plugin_dir)
+    plugin_dir = st.obs_plugin_target().parents[2]  # ...\obs-studio\plugins\bleepline-filter
+    for folder in (plugin_dir, st.legacy_obs_plugin_dir()):
+        if folder.exists():
+            shutil.rmtree(folder)
     for parent in (plugin_dir.parent, plugin_dir.parent.parent):  # drop plugins\ and obs-studio\ only if now empty
         try:
             parent.rmdir()

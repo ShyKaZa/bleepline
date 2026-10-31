@@ -1,5 +1,5 @@
 """
-Local link between Voice Guard and its OBS filter plugin.
+Local link between Bleepline and its OBS filter plugin.
 
 Each OBS filter instance connects over TCP on 127.0.0.1 and owns its own delay
 line inside OBS. It streams mono audio here; we run a Detector per connection
@@ -63,7 +63,7 @@ class LinkServer:
         self._listener = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self._listener.bind(("127.0.0.1", self.port))
         self._listener.listen()
-        threading.Thread(target=self._accept_loop, daemon=True, name="voiceguard-link").start()
+        threading.Thread(target=self._accept_loop, daemon=True, name="bleepline-link").start()
 
     def stop(self):
         if self._listener is not None:
@@ -97,7 +97,7 @@ class LinkServer:
 
 class _Session(threading.Thread):
     def __init__(self, server: LinkServer, conn: socket.socket):
-        super().__init__(daemon=True, name="voiceguard-link-session")
+        super().__init__(daemon=True, name="bleepline-link-session")
         self.server = server
         self.conn = conn
         self.conn.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)

@@ -12,11 +12,12 @@ from pathlib import Path
 
 from .version import APP_NAME, AUTHOR, PROJECT_URL, SUPPORT_URL, VERSION
 
-UNINSTALL_KEY = r"Software\Microsoft\Windows\CurrentVersion\Uninstall\VoiceGuard"
+UNINSTALL_KEY = r"Software\Microsoft\Windows\CurrentVersion\Uninstall\Bleepline"
 NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)
 NEW_GROUP = getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
 DEFAULT_INSTALL_DIR = Path(os.environ.get("LOCALAPPDATA", Path.home())) / "Programs" / APP_NAME
-EXE_NAME = "VoiceGuard.exe"
+EXE_NAME = "Bleepline.exe"
+LEGACY_UNINSTALL_KEY = UNINSTALL_KEY.replace("Bleepline", "VoiceGuard")  # versions before 1.1
 
 
 def _known_folder(csidl: int) -> Path:
@@ -106,9 +107,19 @@ def schedule_folder_delete(folder: Path) -> None:
 
 
 def close_running_instances(exclude_pid: int | None = None) -> None:
-    """Ask any running Voice Guard to close, so its files can be replaced or removed."""
+    """Ask any running Bleepline to close, so its files can be replaced or removed."""
     skip = f" | Where-Object {{ $_.Id -ne {exclude_pid} }}" if exclude_pid else ""
-    script = (f"$p = Get-Process VoiceGuard -ErrorAction SilentlyContinue{skip};"
+    script = (f"$p = Get-Process Bleepline -ErrorAction SilentlyContinue{skip};"
               "$p | ForEach-Object { $_.CloseMainWindow() | Out-Null };"
               "$p | ForEach-Object { if (-not $_.WaitForExit(5000)) { Stop-Process -Id $_.Id -Force } }")
     subprocess.run(["powershell", "-NoProfile", "-Command", script], creationflags=NO_WINDOW)
+
+
+def remove_legacy_install() -> None:
+    """Uninstall Voice Guard 1.0 (this app's old name), keeping its downloads and settings for Bleepline."""
+    try:
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, LEGACY_UNINSTALL_KEY) as key:
+            command = winreg.QueryValueEx(key, "QuietUninstallString")[0]
+    except OSError:
+        return
+    subprocess.run(f"{command} --keep-data", creationflags=NO_WINDOW, timeout=120)

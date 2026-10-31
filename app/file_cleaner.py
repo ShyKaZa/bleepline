@@ -173,7 +173,7 @@ def _write_clean_copy(src: Path, dst: Path, ranges, censor, progress) -> Path:
 
 
 def _write_report(dst: Path, catches) -> None:
-    lines = [f"Voice Guard: {len(catches)} banned word(s) muted in {dst.name}", ""]
+    lines = [f"Bleepline: {len(catches)} banned word(s) muted in {dst.name}", ""]
     for t, word in catches:
         lines.append(f"{int(t // 3600):02d}:{int(t % 3600 // 60):02d}:{t % 60:05.2f}  {word}")
     dst.with_name(dst.stem + " - muted words.txt").write_text("\n".join(lines) + "\n", encoding="utf-8")

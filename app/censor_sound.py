@@ -38,7 +38,7 @@ def load_sound(path: Path, rate: int) -> np.ndarray:
 
 
 def import_sound(source: Path) -> str:
-    """Copy a sound into Voice Guard's sounds folder after checking it decodes. Returns its name."""
+    """Copy a sound into Bleepline's sounds folder after checking it decodes. Returns its name."""
     source = Path(source)
     load_sound(source, 48000)
     SOUNDS_DIR.mkdir(parents=True, exist_ok=True)

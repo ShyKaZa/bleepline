@@ -54,11 +54,11 @@ def video_packets(path: Path) -> list[bytes]:
 def main():
     model = sys.argv[1] if len(sys.argv) > 1 else "base.en"
     tmp = Path(tempfile.gettempdir())
-    wav = tmp / "voiceguard_test_phrase.wav"
+    wav = tmp / "bleepline_test_phrase.wav"
     if not wav.exists():
         it.synthesize(wav)
     speech = it.load_wav(wav, RATE)
-    src = tmp / "voiceguard_test_video.mp4"
+    src = tmp / "bleepline_test_video.mp4"
     make_test_video(src, speech)
 
     stages = []

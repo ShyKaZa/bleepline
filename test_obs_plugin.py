@@ -1,12 +1,12 @@
 """
 End-to-end test of the OBS plugin in a real (portable) OBS:
-loads the plugin, starts Voice Guard's link, adds a media source playing speech with
-profanity, puts the Voice Guard filter on it, records through OBS, and checks the
+loads the plugin, starts Bleepline's link, adds a media source playing speech with
+profanity, puts the Bleepline filter on it, records through OBS, and checks the
 recording. Uses tools/obs-33 (portable; your installed OBS, if any, is untouched).
 
     python test_obs_plugin.py [delay_ms] [model_size] [silence|beep|app] [early]
 
-"app" = the filter uses the Voice Guard app's censor sound; the test gives the app a 600 Hz custom sound.
+"app" = the filter uses the Bleepline app's censor sound; the test gives the app a 600 Hz custom sound.
 "early" = early muting on (exercises the plugin's undoable-mute messages).
 """
 import json
@@ -29,7 +29,7 @@ from app.link_server import LinkServer
 ROOT = Path(__file__).resolve().parent
 OBS_ROOT = ROOT / "tools" / "obs-33"
 OBS_EXE = OBS_ROOT / "bin" / "64bit" / "obs64.exe"
-PLUGIN = ROOT / "obs-plugin" / "voice-guard-filter.dll"
+PLUGIN = ROOT / "obs-plugin" / "bleepline-filter.dll"
 CONFIG = OBS_ROOT / "config" / "obs-studio"
 RECORDINGS = ROOT / "tools" / "obs-recordings"
 RATE = 48000
@@ -85,7 +85,7 @@ def main():
     delay_ms = int(sys.argv[1]) if len(sys.argv) > 1 else 500
     model_size = sys.argv[2] if len(sys.argv) > 2 else "tiny.en"
     mode = sys.argv[3] if len(sys.argv) > 3 else "silence"
-    wav = Path(tempfile.gettempdir()) / "voiceguard_test_phrase.wav"
+    wav = Path(tempfile.gettempdir()) / "bleepline_test_phrase.wav"
     if not wav.exists():
         it.synthesize(wav)
     speech = it.load_wav(wav, RATE)
@@ -116,7 +116,7 @@ def main():
 
     proc = subprocess.Popen([str(OBS_EXE), "--portable", "--multi", "--disable-updater",
                              "--disable-shutdown-check", "--disable-missing-files-check",
-                             "--collection", "VoiceGuardTest", "--profile", "VoiceGuardTest"],
+                             "--collection", "BleeplineTest", "--profile", "BleeplineTest"],
                             cwd=OBS_EXE.parent)
     try:
         cl = connect()
@@ -131,8 +131,8 @@ def main():
                         {"local_file": str(wav), "is_local_file": True, "looping": False,
                          "restart_on_activate": False, "close_when_inactive": False}, True)
         kinds = cl.get_source_filter_kind_list().source_filter_kinds
-        print("voice_guard_filter registered in OBS:", "voice_guard_filter" in kinds)
-        cl.create_source_filter("VG test speech", "Voice Guard", "voice_guard_filter",
+        print("bleepline_filter registered in OBS:", "bleepline_filter" in kinds)
+        cl.create_source_filter("VG test speech", "Bleepline", "bleepline_filter",
                                 {"delay_ms": delay_ms, "mode": mode})
 
         end = time.time() + 15
@@ -161,7 +161,7 @@ def main():
         server.stop()
 
     log = max((CONFIG / "logs").glob("*.txt"), key=lambda p: p.stat().st_mtime).read_text(errors="replace")
-    print("OBS log:", [line.split("] ", 1)[-1] for line in log.splitlines() if "voice-guard" in line])
+    print("OBS log:", [line.split("] ", 1)[-1] for line in log.splitlines() if "bleepline" in line])
 
     out = read_audio(rec)
     env = lambda x: np.abs(x[: len(x) // 480 * 480]).reshape(-1, 480).mean(1)  # noqa: E731

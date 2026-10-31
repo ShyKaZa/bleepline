@@ -1,4 +1,4 @@
-# Builds Voice Guard on GitHub's Windows servers and publishes the downloads.
+# Builds Bleepline on GitHub's Windows servers and publishes the downloads.
 # Push a tag like v1.0.1 (matching app/version.py) to release; notes come from docs/release-notes/<tag>.md.
 # Run it by hand without a tag for a test build: the files are kept as a workflow artifact, nothing is published.
 name: Release
@@ -58,9 +58,9 @@ jobs:
 
       - name: Self-test the built app with a real speech model
         run: |
-          python -c "import os; from huggingface_hub import snapshot_download; snapshot_download('Systran/faster-whisper-tiny.en', local_dir=os.path.join(os.environ['LOCALAPPDATA'], 'VoiceGuard', 'models', 'tiny.en'))"
-          ./dist/VoiceGuard/VoiceGuard.exe --selftest || true
-          log="$LOCALAPPDATA/VoiceGuard/selftest.log"
+          python -c "import os; from huggingface_hub import snapshot_download; snapshot_download('Systran/faster-whisper-tiny.en', local_dir=os.path.join(os.environ['LOCALAPPDATA'], 'Bleepline', 'models', 'tiny.en'))"
+          ./dist/Bleepline/Bleepline.exe --selftest || true
+          log="$LOCALAPPDATA/Bleepline/selftest.log"
           cat "$log"
           # Build servers have no audio devices, so only the packaging and the speech engine must pass here.
           if grep -v "^audio devices: FAILED" "$log" | grep -q "Error\|Traceback"; then
@@ -71,7 +71,7 @@ jobs:
       - name: Keep the files as a workflow artifact too
         uses: actions/upload-artifact@v5
         with:
-          name: voice-guard-${{ env.TAG || 'test-build' }}
+          name: bleepline-${{ env.TAG || 'test-build' }}
           path: release/*
 
       - name: Publish the GitHub release
@@ -81,6 +81,6 @@ jobs:
           [ -f "$notes" ] || { echo "Release notes for $TAG." > /tmp/notes.md; notes=/tmp/notes.md; }
           # Draft first, so nobody sees a release with missing downloads.
           gh release view "$TAG" >/dev/null 2>&1 ||
-            gh release create "$TAG" --draft --verify-tag --title "Voice Guard ${TAG#v}" --notes-file "$notes"
+            gh release create "$TAG" --draft --verify-tag --title "Bleepline ${TAG#v}" --notes-file "$notes"
           gh release upload "$TAG" release/* --clobber
           gh release edit "$TAG" --draft=false --latest

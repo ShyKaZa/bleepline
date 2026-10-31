@@ -15,7 +15,7 @@ from pathlib import Path
 from .paths import APP_DIR, CUDA_DIR, IS_FROZEN, MODELS_DIR, REQUIREMENTS_PATH, cuda_dll_dirs, model_dir
 
 NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)
-HEADERS = {"User-Agent": "VoiceGuard/1.0"}
+HEADERS = {"User-Agent": "Bleepline/1.0"}
 
 REQUIRED_MODULES = ("numpy", "sounddevice", "faster_whisper", "better_profanity")
 
@@ -130,13 +130,13 @@ def validate_model_folder(folder: Path) -> str | None:
     """None if `folder` is a usable faster-whisper model, otherwise what's wrong."""
     missing = [f for f in REQUIRED_MODEL_FILES if not (Path(folder) / f).exists()]
     if missing:
-        return (f"That folder is missing {', '.join(missing)}. Voice Guard needs a faster-whisper (CTranslate2) "
+        return (f"That folder is missing {', '.join(missing)}. Bleepline needs a faster-whisper (CTranslate2) "
                 "model; convert other Whisper models with ct2-transformers-converter.")
     return None
 
 
 def add_model_folder(src: Path, progress, log) -> str:
-    """Copy a model folder into Voice Guard's models folder. Returns the name it's listed under."""
+    """Copy a model folder into Bleepline's models folder. Returns the name it's listed under."""
     src = Path(src)
     error = validate_model_folder(src)
     if error:
@@ -202,7 +202,8 @@ def open_cable_page() -> None:
 
 # -- OBS plugin -------------------------------------------------------------------
 
-OBS_PLUGIN_NAME = "voice-guard-filter"
+OBS_PLUGIN_NAME = "bleepline-filter"
+LEGACY_OBS_PLUGIN_NAME = "voice-guard-filter"  # the plugin's name before 1.1
 
 
 def bundled_obs_plugin() -> Path | None:
@@ -214,6 +215,10 @@ def obs_plugin_target() -> Path:
     # OBS 30+ loads per-machine plugins from here, no matter where OBS itself is installed.
     root = Path(os.environ.get("ProgramData", r"C:\ProgramData"))
     return root / "obs-studio" / "plugins" / OBS_PLUGIN_NAME / "bin" / "64bit" / f"{OBS_PLUGIN_NAME}.dll"
+
+
+def legacy_obs_plugin_dir() -> Path:
+    return obs_plugin_target().parents[3] / LEGACY_OBS_PLUGIN_NAME
 
 
 def obs_installed() -> bool:
@@ -233,6 +238,10 @@ def install_obs_plugin(log) -> None:
     target.parent.mkdir(parents=True, exist_ok=True)
     shutil.copy2(src, target)
     log(f"OBS plugin installed to {target}. Restart OBS to load it.")
+    if legacy_obs_plugin_dir().exists():
+        shutil.rmtree(legacy_obs_plugin_dir(), ignore_errors=True)
+        log("Removed the old Voice Guard plugin. In OBS, re-add the filter to your audio sources: "
+            "Filters > + > Bleepline (profanity filter).")
 
 
 # -- helpers --------------------------------------------------------------------

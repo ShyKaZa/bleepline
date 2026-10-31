@@ -33,7 +33,7 @@ CABLE_PLAYBACK = "CABLE Input"
 WRAP = 640
 
 MODE_LABELS = {
-    "obs": "OBS Studio - filter inside OBS with the Voice Guard plugin (no drivers)",
+    "obs": "OBS Studio - filter inside OBS with the Bleepline plugin (no drivers)",
     "stream": "Streamlabs, XSplit, Twitch Studio or any other streaming / recording app",
     "listen": "Filter what I hear (voice chat into my headset)",
     "custom": "Custom input and output devices",
@@ -41,12 +41,12 @@ MODE_LABELS = {
 MODE_HELP = {
     "obs": ("1. Install the OBS plugin (Setup tab), then restart OBS.\n"
             "2. In OBS, right-click an audio source (Desktop Audio, your mic, a game or Discord "
-            "capture) > Filters > + > Voice Guard. Its delay is set in that filter.\n"
+            "capture) > Filters > + > Bleepline. Its delay is set in that filter.\n"
             "3. Add OBS's built-in Render Delay filter to your webcam and game capture with the same "
             "delay so the video stays in sync.\n"
-            "4. Keep Voice Guard running in this mode while you stream. You hear everything live; "
+            "4. Keep Bleepline running in this mode while you stream. You hear everything live; "
             "only the stream is cleaned."),
-    "stream": ("1. Voice Guard records everything playing on the device below (game, Discord, "
+    "stream": ("1. Bleepline records everything playing on the device below (game, Discord, "
                "browser...) and sends a cleaned copy to \"CABLE Input\". You still hear it all live.\n"
                "2. In your streaming app, turn off its own desktop / system audio and add "
                "\"CABLE Output (VB-Audio Virtual Cable)\" as an audio input instead.\n"
@@ -55,7 +55,7 @@ MODE_HELP = {
                "Virtual Cable)\", and Input Device > your real microphone (not \"Default\").\n"
                "2. Leave Windows' own default speaker and microphone on your headset. Only Discord's output "
                "goes to the cable.\n"
-               "3. Voice Guard plays the cleaned call into your headset, so you and anything that captures "
+               "3. Bleepline plays the cleaned call into your headset, so you and anything that captures "
                "your desktop audio get the clean version. Not for game audio - you'd hear the game late."),
     "custom": "Any input to any output, e.g. to try it on your own microphone.",
 }
@@ -72,7 +72,7 @@ SOUND_TYPES = [("Audio files", "*.wav *.mp3 *.ogg *.flac *.m4a *.aac *.opus"), (
 SOUNDS_DIR = maintenance.SOUNDS_DIR
 
 
-class VoiceGuardApp(tk.Tk):
+class BleeplineApp(tk.Tk):
     def __init__(self, startup: bool = False):
         super().__init__()
         self.title(f"{APP_NAME} {VERSION}")
@@ -82,7 +82,7 @@ class VoiceGuardApp(tk.Tk):
         self.settings = Settings.load()
         self.palette = theme.apply(self, self.settings.theme)
         _use_palette(self.palette)
-        icon = ASSETS_DIR / "voiceguard.ico"
+        icon = ASSETS_DIR / "bleepline.ico"
         if icon.exists():
             self.iconbitmap(default=str(icon))  # also used by dialogs
         self.engine = None  # AudioEngine, or LinkServer in OBS mode
@@ -140,7 +140,7 @@ class VoiceGuardApp(tk.Tk):
     def _build_header(self):
         bar = ttk.Frame(self, style="Header.TFrame")
         bar.pack(fill="x")
-        logo = ASSETS_DIR / "voiceguard-32.png"
+        logo = ASSETS_DIR / "bleepline-32.png"
         if logo.exists():
             self._logo = tk.PhotoImage(file=str(logo))
             ttk.Label(bar, image=self._logo, style="Header.TLabel").pack(side="left", padx=(14, 8), pady=10)
@@ -260,7 +260,7 @@ class VoiceGuardApp(tk.Tk):
                   foreground=GREY).pack(side="left")
 
         self.auto_start_var = tk.BooleanVar(value=self.settings.auto_start)
-        ttk.Checkbutton(tune, text="Start filtering automatically when Voice Guard opens",
+        ttk.Checkbutton(tune, text="Start filtering automatically when Bleepline opens",
                         variable=self.auto_start_var).pack(anchor="w", padx=8, pady=(0, 2))
         ttk.Label(tune, foreground=GREY, text="Language, sensitivity and the censor sound are in the Options tab."
                   ).pack(anchor="w", padx=8, pady=(0, 6))
@@ -289,7 +289,7 @@ class VoiceGuardApp(tk.Tk):
         self.mode_help.config(text=MODE_HELP[mode])
         if mode == "obs":
             self.delay_scale.state(["disabled"])
-            self.delay_hint.config(text="In OBS mode the delay is set in each Voice Guard filter inside OBS.")
+            self.delay_hint.config(text="In OBS mode the delay is set in each Bleepline filter inside OBS.")
         else:
             if self.engine is None:
                 self.delay_scale.state(["!disabled"])
@@ -597,7 +597,7 @@ class VoiceGuardApp(tk.Tk):
 
     def _export_words(self):
         path = filedialog.asksaveasfilename(title="Export your words", defaultextension=".txt",
-                                            initialfile="voice guard words.txt",
+                                            initialfile="bleepline words.txt",
                                             filetypes=[("Text files", "*.txt")])
         if path:
             wordlists.export_words(Path(path), self._your_words())
@@ -803,7 +803,7 @@ class VoiceGuardApp(tk.Tk):
         start = ttk.LabelFrame(f, text="Startup")
         start.pack(fill="x", padx=10, pady=6)
         self.startup_var = tk.BooleanVar(value=winsetup.startup_shortcut().exists())
-        ttk.Checkbutton(start, text="Start Voice Guard when Windows starts", variable=self.startup_var,
+        ttk.Checkbutton(start, text="Start Bleepline when Windows starts", variable=self.startup_var,
                         command=self._toggle_startup).pack(anchor="w", padx=8, pady=(6, 0))
         self.minimized_var = tk.BooleanVar(value=s.start_minimized)
         ttk.Checkbutton(start, text="...and start it minimized", variable=self.minimized_var).pack(anchor="w", padx=8)
@@ -900,7 +900,7 @@ class VoiceGuardApp(tk.Tk):
         f = self.setup_tab
         ttk.Label(
             f, wraplength=WRAP, justify="left",
-            text=("Everything Voice Guard needs. \"Install everything\" installs what's missing below plus the "
+            text=("Everything Bleepline needs. \"Install everything\" installs what's missing below plus the "
                   "tiny.en and base.en speech models (more models in the Models tab). VB-CABLE is a driver from "
                   "VB-Audio and is only needed for the Streamlabs/XSplit/other and Filter-what-I-hear modes. It's "
                   "donationware: free for personal use, so if it helps you, consider supporting VB-Audio."),
@@ -943,7 +943,7 @@ class VoiceGuardApp(tk.Tk):
         self.progress_label = ttk.Label(prog, text="", width=16)
         self.progress_label.pack(side="left", padx=6)
 
-        self.restart_btn = ttk.Button(f, text="Restart Voice Guard to finish setup", command=self._restart)
+        self.restart_btn = ttk.Button(f, text="Restart Bleepline to finish setup", command=self._restart)
         self.setup_log_frame = ttk.LabelFrame(f, text="Setup log")
         self.setup_log_frame.pack(fill="both", expand=True, padx=10, pady=(8, 10))
         self.setup_log_text = self._make_log(self.setup_log_frame)
@@ -1063,7 +1063,7 @@ class VoiceGuardApp(tk.Tk):
         if not ok:
             messagebox.showerror(APP_NAME, f"{label} failed - see the Setup tab's log for details.")
         if ok and packages_were_missing and not st.missing_packages():
-            self._setup_log("Python packages installed. Restart Voice Guard to load them.")
+            self._setup_log("Python packages installed. Restart Bleepline to load them.")
             self.restart_btn.pack(anchor="w", padx=10, pady=(8, 0), before=self.setup_log_frame)
         elif not st.missing_packages():
             self._load_devices()
@@ -1095,7 +1095,7 @@ class VoiceGuardApp(tk.Tk):
         f = self.about_tab
         top = ttk.Frame(f)
         top.pack(fill="x", padx=16, pady=(16, 8))
-        logo = ASSETS_DIR / "voiceguard-64.png"
+        logo = ASSETS_DIR / "bleepline-64.png"
         if logo.exists():
             self._about_logo = tk.PhotoImage(file=str(logo))
             ttk.Label(top, image=self._about_logo).pack(side="left", padx=(0, 14))
@@ -1111,7 +1111,7 @@ class VoiceGuardApp(tk.Tk):
         links = ttk.Frame(f)
         links.pack(anchor="w", padx=16, pady=(0, 8))
         if SUPPORT_URL:
-            ttk.Button(links, text="♥  Support Voice Guard", style="Accent.TButton",
+            ttk.Button(links, text="♥  Support Bleepline", style="Accent.TButton",
                        command=lambda: webbrowser.open(SUPPORT_URL)).pack(side="left", padx=(0, 8))
         if PROJECT_URL:
             ttk.Button(links, text="Project page", command=lambda: webbrowser.open(PROJECT_URL)).pack(
@@ -1146,7 +1146,7 @@ class VoiceGuardApp(tk.Tk):
                   ).grid(row=99, column=0, columnspan=3, sticky="w", padx=8, pady=(4, 6))
 
         ttk.Label(f, foreground=GREY, wraplength=WRAP, justify="left", text=(
-            "Voice Guard is provided as is, without warranty. Speech recognition makes mistakes: it can miss "
+            "Bleepline is provided as is, without warranty. Speech recognition makes mistakes: it can miss "
             "words or mute harmless ones, so it lowers the risk of a strike but can't guarantee your stream or "
             "recording is clean.")).pack(anchor="w", padx=16, pady=(8, 12))
 
@@ -1159,7 +1159,7 @@ class VoiceGuardApp(tk.Tk):
 
     def _build_manage_tab(self):
         f = self.manage_tab
-        store = ttk.LabelFrame(f, text="What Voice Guard has downloaded")
+        store = ttk.LabelFrame(f, text="What Bleepline has downloaded")
         store.pack(fill="x", padx=10, pady=(12, 6))
         self.storage_grid = ttk.Frame(store)
         self.storage_grid.pack(fill="x", padx=8, pady=6)
@@ -1168,7 +1168,7 @@ class VoiceGuardApp(tk.Tk):
         row.pack(fill="x", padx=8, pady=(0, 8))
         self.storage_total = ttk.Label(row, text="", font=("Segoe UI", 9, "bold"))
         self.storage_total.pack(side="left")
-        self.remove_all_btn = ttk.Button(row, text="Remove everything Voice Guard downloaded",
+        self.remove_all_btn = ttk.Button(row, text="Remove everything Bleepline downloaded",
                                          command=self._remove_everything)
         self.remove_all_btn.pack(side="right")
         ttk.Label(store, foreground=GREY, wraplength=WRAP, justify="left",
@@ -1185,7 +1185,7 @@ class VoiceGuardApp(tk.Tk):
         cable = ttk.LabelFrame(f, text="VB-CABLE")
         cable.pack(fill="x", padx=10, pady=6)
         ttk.Label(cable, wraplength=WRAP, justify="left",
-                  text=("VB-CABLE is a separate driver from VB-Audio, so Voice Guard can't remove it for you. To "
+                  text=("VB-CABLE is a separate driver from VB-Audio, so Bleepline can't remove it for you. To "
                         "uninstall it, run VBCABLE_Setup_x64.exe from its download as administrator, click "
                         "Remove Driver, then reboot.")).pack(anchor="w", padx=8, pady=6)
 
@@ -1211,7 +1211,7 @@ class VoiceGuardApp(tk.Tk):
             self.app_btn.config(text=f"Uninstall {APP_NAME}...", command=self._uninstall)
         elif IS_FROZEN:
             self.app_info.config(text=f"This is the portable version in {APP_DIR}. To remove it, click \"Remove "
-                                      "everything\" above, close Voice Guard and delete that folder.")
+                                      "everything\" above, close Bleepline and delete that folder.")
             self.app_btn.config(text="Open the app folder",
                                 command=lambda: subprocess.Popen(["explorer", str(APP_DIR)]))
         else:
@@ -1421,7 +1421,7 @@ class VoiceGuardApp(tk.Tk):
             w.state(["disabled"])
         s = self.settings
         if s.mode == "obs":
-            self._log("Waiting for OBS: add the Voice Guard filter to an audio source in OBS.")
+            self._log("Waiting for OBS: add the Bleepline filter to an audio source in OBS.")
         else:
             inp, out, _ = self._route()
             self._log(f"Filtering {inp}  ->  {out}  ({s.delay_ms} ms delay)")
@@ -1529,7 +1529,7 @@ class VoiceGuardApp(tk.Tk):
         safe = int(math.ceil((2.25 * ms + 400) / 50) * 50)
         self._slow_checks = self._slow_checks + 1 if safe > delay else 0
         if self._slow_checks == 10:
-            where = "the delay in the Voice Guard filter in OBS" if mode == "obs" else "the Delay slider"
+            where = "the delay in the Bleepline filter in OBS" if mode == "obs" else "the Delay slider"
             self._log(f"Checks are taking {ms:.0f} ms (the GPU is busy, probably with a game). At {delay} ms delay "
                       f"some words may get through: raise {where} to about {min(safe, 1500)} ms, use a smaller "
                       "model, or set a fixed language in Options.")

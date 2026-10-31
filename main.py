@@ -11,7 +11,7 @@ if __name__ == "__main__":
         pass
 
     try:  # own taskbar group and icon instead of Python's when run from source
-        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("VoiceGuard.App")
+        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("Bleepline.App")
     except Exception:
         pass
 
@@ -24,6 +24,6 @@ if __name__ == "__main__":
 
         sys.exit(run(silent="--silent" in sys.argv, keep_data="--keep-data" in sys.argv))
 
-    from app.gui import VoiceGuardApp
+    from app.gui import BleeplineApp
 
-    VoiceGuardApp(startup="--startup" in sys.argv).mainloop()
+    BleeplineApp(startup="--startup" in sys.argv).mainloop()

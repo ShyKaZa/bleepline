@@ -1,4 +1,4 @@
-"""`VoiceGuard.exe --uninstall [--silent] [--keep-data]`: what Windows runs from Apps & features."""
+"""`Bleepline.exe --uninstall [--silent] [--keep-data]`: what Windows runs from Apps & features."""
 import os
 import tkinter as tk
 from tkinter import messagebox, ttk
@@ -28,7 +28,7 @@ def run(silent: bool = False, keep_data: bool = False) -> int:
                     text=(f"Also remove downloaded speech models, GPU runtime and settings "
                           f"({maintenance.human_size(maintenance.dir_size(DATA_DIR))})")).pack(**pad)
     plugin_var = tk.BooleanVar(value=st.obs_plugin_installed())
-    plugin_check = ttk.Checkbutton(root, variable=plugin_var, text="Remove the Voice Guard filter from OBS")
+    plugin_check = ttk.Checkbutton(root, variable=plugin_var, text="Remove the Bleepline filter from OBS")
     plugin_check.pack(**pad)
     if not st.obs_plugin_installed():
         plugin_check.state(["disabled"])
@@ -55,7 +55,7 @@ def run(silent: bool = False, keep_data: bool = False) -> int:
     ttk.Button(buttons, text="Cancel", command=root.destroy).pack(side="right")
     ttk.Button(buttons, text="Uninstall", command=uninstall).pack(side="right", padx=6)
     theme.apply(root, Settings.load().theme)
-    if (ASSETS_DIR / "voiceguard.ico").exists():
-        root.iconbitmap(default=str(ASSETS_DIR / "voiceguard.ico"))
+    if (ASSETS_DIR / "bleepline.ico").exists():
+        root.iconbitmap(default=str(ASSETS_DIR / "bleepline.ico"))
     root.mainloop()
     return result["code"]

@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 // Copyright (c) 2026 Gorgho
 /*
- * Voice Guard OBS audio filter.
+ * Bleepline OBS audio filter.
  *
  * Holds a source's audio back by a fixed delay and silences (or bleeps) the
- * sample ranges that the Voice Guard app reports as banned words. The app runs
+ * sample ranges that the Bleepline app reports as banned words. The app runs
  * the speech recognition; this filter only buffers audio, streams a mono copy
  * to the app over 127.0.0.1, and applies the mute ranges it sends back.
  *
@@ -17,7 +17,7 @@
  *   app -> filter  UNDO  u8 5 u32 id                                 remove that early mute
  *
  * If the app isn't running the audio still passes through, delayed, so
- * starting or stopping Voice Guard never shifts audio/video sync.
+ * starting or stopping Bleepline never shifts audio/video sync.
  */
 #define WIN32_LEAN_AND_MEAN
 #include <winsock2.h>
@@ -51,7 +51,7 @@ enum vg_mode { VG_MODE_APP, VG_MODE_SILENCE, VG_MODE_BEEP };
 #define VG_RAMP_MS 5
 #define VG_BEEP_HZ 1000.0
 #define VG_BEEP_AMP 0.2f
-#define VG_LOG(level, fmt, ...) blog(level, "[voice-guard] " fmt, ##__VA_ARGS__)
+#define VG_LOG(level, fmt, ...) blog(level, "[bleepline] " fmt, ##__VA_ARGS__)
 
 struct vg_filter {
 	obs_source_t *context;
@@ -421,7 +421,7 @@ static DWORD WINAPI vg_net_thread(LPVOID param)
 			}
 			InterlockedExchange(&f->connected, 1);
 			if (!was_connected)
-				VG_LOG(LOG_INFO, "connected to the Voice Guard app");
+				VG_LOG(LOG_INFO, "connected to the Bleepline app");
 			was_connected = true;
 		}
 		if (f->reset || !vg_pump(f, s, &in)) {
@@ -429,7 +429,7 @@ static DWORD WINAPI vg_net_thread(LPVOID param)
 			closesocket(s);
 			s = INVALID_SOCKET;
 			if (!f->reset && was_connected) {
-				VG_LOG(LOG_INFO, "lost the Voice Guard app; passing audio through (delayed)");
+				VG_LOG(LOG_INFO, "lost the Bleepline app; passing audio through (delayed)");
 				was_connected = false;
 			}
 		}
@@ -445,7 +445,7 @@ static DWORD WINAPI vg_net_thread(LPVOID param)
 static const char *vg_get_name(void *type_data)
 {
 	UNUSED_PARAMETER(type_data);
-	return "Voice Guard (profanity filter)";
+	return "Bleepline (profanity filter)";
 }
 
 static void vg_update(void *data, obs_data_t *settings)
@@ -620,18 +620,18 @@ static obs_properties_t *vg_properties(void *data)
 	obs_property_int_set_suffix(delay, " ms");
 	obs_property_t *mode = obs_properties_add_list(props, "mode", "When a word is caught", OBS_COMBO_TYPE_LIST,
 						       OBS_COMBO_FORMAT_STRING);
-	obs_property_list_add_string(mode, "Use the Voice Guard app's setting", "app");
+	obs_property_list_add_string(mode, "Use the Bleepline app's setting", "app");
 	obs_property_list_add_string(mode, "Silence", "silence");
 	obs_property_list_add_string(mode, "Beep (1 kHz)", "beep");
 	obs_properties_add_text(props, "info",
-				"Keep the Voice Guard app open in \"OBS Studio\" mode. Add OBS's Render Delay filter "
+				"Keep the Bleepline app open in \"OBS Studio\" mode. Add OBS's Render Delay filter "
 				"to your video sources with the same delay so lip-sync stays right.",
 				OBS_TEXT_INFO);
 	return props;
 }
 
 static struct obs_source_info vg_filter_info = {
-	.id = "voice_guard_filter",
+	.id = "bleepline_filter",
 	.type = OBS_SOURCE_TYPE_FILTER,
 	.output_flags = OBS_SOURCE_AUDIO,
 	.get_name = vg_get_name,
@@ -645,7 +645,7 @@ static struct obs_source_info vg_filter_info = {
 
 const char *obs_module_description(void)
 {
-	return "Voice Guard: real-time profanity filter for audio sources";
+	return "Bleepline: real-time profanity filter for audio sources";
 }
 
 bool obs_module_load(void)

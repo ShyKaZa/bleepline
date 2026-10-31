@@ -133,7 +133,7 @@ class AudioEngine:
                 self._soundcard = soundcard
                 self._capture_stop.clear()
                 self._capture_thread = threading.Thread(target=self._loopback_loop, daemon=True,
-                                                        name="voiceguard-loopback")
+                                                        name="bleepline-loopback")
                 self._capture_thread.start()
             else:
                 in_idx = self.input_index if self.input_index is not None else sd.default.device[0]

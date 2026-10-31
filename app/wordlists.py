@@ -194,7 +194,7 @@ def import_file(source: Path) -> tuple[str, int]:
 
 def download_language(code: str) -> tuple[str, int]:
     name, _ = LANGUAGE_LISTS[code]
-    req = urllib.request.Request(LDNOOBW_URL.format(code), headers={"User-Agent": "VoiceGuard/1.0"})
+    req = urllib.request.Request(LDNOOBW_URL.format(code), headers={"User-Agent": "Bleepline/1.0"})
     with urllib.request.urlopen(req, timeout=30) as resp:
         entries = parse_lines(resp.read().decode("utf-8", "replace"))
     dest = WORDLISTS_DIR / f"{name} (LDNOOBW).txt"

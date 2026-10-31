@@ -1,4 +1,4 @@
-"""`VoiceGuard.exe --selftest`: checks the installed app end to end and writes selftest.log."""
+"""`Bleepline.exe --selftest`: checks the installed app end to end and writes selftest.log."""
 import time
 import traceback
 

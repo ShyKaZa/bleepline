@@ -1,6 +1,6 @@
 """Build the OBS filter plugin with Zig (no Visual Studio needed).
 
-    venv/Scripts/python build_obs_plugin.py  ->  obs-plugin/voice-guard-filter.dll
+    venv/Scripts/python build_obs_plugin.py  ->  obs-plugin/bleepline-filter.dll
 
 Compiles against OBS 30 headers so the plugin loads in OBS 30 and newer. Linking only needs obs.dll's
 export names: they're read from an OBS install in tools/obs-33 when present (and saved to
@@ -15,9 +15,9 @@ ROOT = Path(__file__).resolve().parent
 HEADERS = ROOT / "tools" / "obs-src-30" / "libobs"
 OBS_DLL = ROOT / "tools" / "obs-33" / "bin" / "64bit" / "obs.dll"
 BUILD = ROOT / "tools" / "build"
-SOURCE = ROOT / "obs-plugin-src" / "voice-guard-filter.c"
+SOURCE = ROOT / "obs-plugin-src" / "bleepline-filter.c"
 SAVED_DEF = ROOT / "obs-plugin-src" / "obs.def"
-OUT = ROOT / "obs-plugin" / "voice-guard-filter.dll"
+OUT = ROOT / "obs-plugin" / "bleepline-filter.dll"
 
 
 def dll_exports(path: Path) -> list[str]:

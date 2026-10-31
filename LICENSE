@@ -25,5 +25,5 @@ The OBS plugin in obs-plugin-src/ is licensed separately under the GNU General
 Public License v2.0 or later (see obs-plugin-src/LICENSE), because it links
 against libobs, which is GPL-licensed.
 
-Third-party components bundled with or downloaded by Voice Guard are listed,
+Third-party components bundled with or downloaded by Bleepline are listed,
 with their licenses, in THIRD_PARTY_NOTICES.txt.

@@ -7,8 +7,8 @@ from app import maintenance, setup_tasks as st
 
 def test_storage_and_removal():
     with tempfile.TemporaryDirectory() as tmp:
-        data = Path(tmp) / "VoiceGuard"
-        plugin = Path(tmp) / "ProgramData" / "obs-studio" / "plugins" / "voice-guard-filter" / "bin" / "64bit" / "voice-guard-filter.dll"
+        data = Path(tmp) / "Bleepline"
+        plugin = Path(tmp) / "ProgramData" / "obs-studio" / "plugins" / "bleepline-filter" / "bin" / "64bit" / "bleepline-filter.dll"
         for f, size in ((data / "models" / "tiny.en" / "model.bin", 1000), (data / "models" / "base.en" / "model.bin", 2000),
                         (data / "runtime" / "cuda" / "cublas64_12.dll", 3000), (data / "settings.json", 10),
                         (data / "custom_words.txt", 5), (data / "selftest.log", 5), (plugin, 50)):

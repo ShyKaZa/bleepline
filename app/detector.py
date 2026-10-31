@@ -140,7 +140,7 @@ class Detector:
         self._thread: threading.Thread | None = None
 
     def start(self):
-        self._thread = threading.Thread(target=self._loop, daemon=True, name="voiceguard-detector")
+        self._thread = threading.Thread(target=self._loop, daemon=True, name="bleepline-detector")
         self._thread.start()
 
     def stop(self):

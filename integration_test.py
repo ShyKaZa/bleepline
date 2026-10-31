@@ -48,7 +48,7 @@ def main():
     delay_ms = int(sys.argv[1]) if len(sys.argv) > 1 else 600
     model_size = sys.argv[2] if len(sys.argv) > 2 else "base.en"
 
-    wav = Path(tempfile.gettempdir()) / "voiceguard_test_phrase.wav"
+    wav = Path(tempfile.gettempdir()) / "bleepline_test_phrase.wav"
     if not wav.exists():
         synthesize(wav)
     speech = load_wav(wav, RATE)

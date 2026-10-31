@@ -83,7 +83,7 @@ def it_recv(sock, n):
 def main():
     delay_ms = int(sys.argv[1]) if len(sys.argv) > 1 else 500
     model_size = sys.argv[2] if len(sys.argv) > 2 else "tiny.en"
-    wav = Path(tempfile.gettempdir()) / "voiceguard_test_phrase.wav"
+    wav = Path(tempfile.gettempdir()) / "bleepline_test_phrase.wav"
     if not wav.exists():
         it.synthesize(wav)
     speech = it.load_wav(wav, RATE)

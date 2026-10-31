@@ -53,7 +53,7 @@ def test_custom_sound_in_cleaned_recording(model):
         name = cs.import_sound(src_sound)
         assert name == "my quack.wav" and abs(peak_hz(cs.load_sound(cs.SOUNDS_DIR / name, 48000), 48000) - 600) < 5
 
-        wav = Path(tempfile.gettempdir()) / "voiceguard_test_phrase.wav"
+        wav = Path(tempfile.gettempdir()) / "bleepline_test_phrase.wav"
         speech = it.load_wav(wav, 48000)
         video = Path(tmp) / "clip.mp4"
         tfc.make_test_video(video, speech)

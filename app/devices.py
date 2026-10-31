@@ -1,6 +1,6 @@
 """Audio device discovery. Imports sounddevice lazily so the GUI can open before packages exist."""
 
-CABLE_CAPTURE_NAME = "CABLE Output"  # what Voice Guard records from
+CABLE_CAPTURE_NAME = "CABLE Output"  # what Bleepline records from
 CABLE_PLAYBACK_NAME = "CABLE Input"  # what the voice app (Discord) plays into
 
 
@@ -61,7 +61,7 @@ def windows_default_problems() -> list[str]:
     out, inp = default_output_name(), default_input_name()
     if out and CABLE_PLAYBACK_NAME in out:
         problems.append("Windows' default speaker is CABLE Input, so all your PC sound (games too) goes through "
-                        "Voice Guard and you hear it late. Set your headset as the default output.")
+                        "Bleepline and you hear it late. Set your headset as the default output.")
     if inp and CABLE_CAPTURE_NAME in inp:
         problems.append("Windows' default microphone is CABLE Output, so apps using the default mic (in-game voice "
                         "chat, Discord on \"Default\") send your PC sound instead of your voice: friends hear "

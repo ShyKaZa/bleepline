@@ -1,7 +1,7 @@
-"""Voice Guard setup: installs the app for the current Windows user (no admin rights needed).
+"""Bleepline setup: installs the app for the current Windows user (no admin rights needed).
 
-    VoiceGuard-Setup.exe                                        interactive
-    VoiceGuard-Setup.exe --silent [--dir PATH] [--desktop] [--launch]
+    Bleepline-Setup.exe                                        interactive
+    Bleepline-Setup.exe --silent [--dir PATH] [--desktop] [--launch]
 
 Re-running a newer setup updates the installed copy in place; downloads and settings are kept.
 """
@@ -20,7 +20,7 @@ if not getattr(sys, "frozen", False):
 from app import theme, winsetup  # noqa: E402
 from app.version import APP_NAME, VERSION  # noqa: E402
 
-ZIP_ROOT = "VoiceGuard/"
+ZIP_ROOT = "Bleepline/"
 
 
 def asset(name: str) -> Path:
@@ -30,12 +30,13 @@ def asset(name: str) -> Path:
 
 def payload() -> Path:
     if getattr(sys, "frozen", False):
-        return Path(sys._MEIPASS) / "VoiceGuard-win64.zip"
-    return Path(__file__).resolve().parent.parent / "dist" / "VoiceGuard-win64.zip"
+        return Path(sys._MEIPASS) / "Bleepline-win64.zip"
+    return Path(__file__).resolve().parent.parent / "dist" / "Bleepline-win64.zip"
 
 
 def install(target: Path, desktop: bool, progress=lambda fraction: None) -> Path:
     winsetup.close_running_instances()
+    winsetup.remove_legacy_install()
     if (target / "_internal").exists():
         shutil.rmtree(target / "_internal")  # drop the previous version's libraries
     with zipfile.ZipFile(payload()) as z:
@@ -60,8 +61,8 @@ class SetupWindow(tk.Tk):
     def __init__(self):
         super().__init__()
         self.title(f"{APP_NAME} {VERSION} Setup")
-        if asset("voiceguard.ico").exists():
-            self.iconbitmap(default=str(asset("voiceguard.ico")))
+        if asset("bleepline.ico").exists():
+            self.iconbitmap(default=str(asset("bleepline.ico")))
         self.resizable(False, False)
         existing = winsetup.installed_dir()
         pad = {"padx": 16, "anchor": "w"}
@@ -100,7 +101,7 @@ class SetupWindow(tk.Tk):
         self._result = None
 
     def _browse(self):
-        folder = filedialog.askdirectory(title="Install Voice Guard to")
+        folder = filedialog.askdirectory(title="Install Bleepline to")
         if folder:
             self.dir_var.set(str(Path(folder) / APP_NAME))
 

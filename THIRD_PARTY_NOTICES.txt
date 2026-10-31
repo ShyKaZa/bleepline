@@ -1,6 +1,6 @@
-Voice Guard - third-party notices
+Bleepline - third-party notices
 ==============================================================================
-Voice Guard itself is MIT-licensed, Copyright (c) 2026 Gorgho (see LICENSE).
+Bleepline itself is MIT-licensed, Copyright (c) 2026 Gorgho (see LICENSE).
 It is built on the components below. Thank you to all of their authors.
 
 Components:
@@ -6732,7 +6732,7 @@ permanent authorization for you to choose that version for the
 Library.
 
 ==============================================================================
-x264 and x265 video encoders (inside PyAV's FFmpeg build; Voice Guard copies video untouched and never uses them)
+x264 and x265 video encoders (inside PyAV's FFmpeg build; Bleepline copies video untouched and never uses them)
 License: GPL-2.0-or-later. Sources: https://code.videolan.org/videolan/x264 and https://bitbucket.org/multicoreware/x265_git
 Website: https://www.videolan.org/developers/x264.html
 ==============================================================================

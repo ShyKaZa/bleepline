@@ -1,6 +1,6 @@
-"""Draws the Voice Guard icon: a shield holding a sound wave with a censor bar across it.
+"""Draws the Bleepline icon: a shield holding a sound wave with a censor bar across it.
 
-    venv/Scripts/python make_icon.py  ->  assets/voiceguard.ico (16-256 px) + assets/voiceguard-*.png
+    venv/Scripts/python make_icon.py  ->  assets/bleepline.ico (16-256 px) + assets/bleepline-*.png
 """
 from pathlib import Path
 
@@ -72,10 +72,10 @@ def render(size: int) -> Image.Image:
 def main():
     ASSETS.mkdir(exist_ok=True)
     images = {size: render(size) for size in ICO_SIZES}
-    images[256].save(ASSETS / "voiceguard.ico", sizes=[(n, n) for n in ICO_SIZES],
+    images[256].save(ASSETS / "bleepline.ico", sizes=[(n, n) for n in ICO_SIZES],
                      append_images=[images[n] for n in ICO_SIZES if n != 256])
     for n in (32, 64, 256):
-        images[n].save(ASSETS / f"voiceguard-{n}.png")
+        images[n].save(ASSETS / f"bleepline-{n}.png")
     preview = Image.new("RGBA", (256 + 16 + 128 + 16 + 64 + 16 + 48 + 16 + 32 + 16 + 16, 256), (32, 33, 40, 255))
     x = 0
     for n in (256, 128, 64, 48, 32, 16):

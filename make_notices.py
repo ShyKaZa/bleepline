@@ -2,7 +2,7 @@
 
     venv/Scripts/python make_notices.py   (build.py runs it after PyInstaller)
 
-Python packages are found by looking at what PyInstaller actually put in dist/VoiceGuard/_internal;
+Python packages are found by looking at what PyInstaller actually put in dist/Bleepline/_internal;
 components that aren't Python packages (FFmpeg, cuDNN, speech models, ...) are listed in EXTRAS.
 License texts that a package doesn't ship itself live in notices/.
 """
@@ -14,7 +14,7 @@ from importlib.metadata import distributions
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
-BUNDLE = ROOT / "dist" / "VoiceGuard" / "_internal"
+BUNDLE = ROOT / "dist" / "Bleepline" / "_internal"
 NOTICES = ROOT / "notices"
 OUT = ROOT / "THIRD_PARTY_NOTICES.txt"
 SKIP = {"pip", "setuptools", "pyinstaller", "pyinstaller-hooks-contrib", "altgraph", "pefile", "pywin32-ctypes"}
@@ -36,7 +36,7 @@ EXTRAS = [
     ("FFmpeg libraries (inside PyAV: avcodec, avformat, avutil, avfilter, avdevice, swresample, swscale)",
      "LGPL-3.0-or-later. Built by the PyAV project; build scripts and sources: "
      "https://github.com/PyAV-Org/pyav-ffmpeg", "https://ffmpeg.org", NOTICES / "LGPL-3.0.txt"),
-    ("x264 and x265 video encoders (inside PyAV's FFmpeg build; Voice Guard copies video untouched and never "
+    ("x264 and x265 video encoders (inside PyAV's FFmpeg build; Bleepline copies video untouched and never "
      "uses them)", "GPL-2.0-or-later. Sources: https://code.videolan.org/videolan/x264 and "
      "https://bitbucket.org/multicoreware/x265_git", "https://www.videolan.org/developers/x264.html",
      NOTICES / "GPL-2.0.txt"),
@@ -63,10 +63,10 @@ EXTRAS = [
 
 
 def archived_modules() -> set[str]:
-    """Top-level names of the pure-Python modules PyInstaller packed inside VoiceGuard.exe."""
+    """Top-level names of the pure-Python modules PyInstaller packed inside Bleepline.exe."""
     viewer = shutil.which("pyi-archive_viewer") or str(Path(sys.executable).parent / "pyi-archive_viewer")
     out = subprocess.run([viewer, "--recursive", "--brief",
-                          str(BUNDLE.parent / "VoiceGuard.exe")], capture_output=True, text=True).stdout
+                          str(BUNDLE.parent / "Bleepline.exe")], capture_output=True, text=True).stdout
     return {m.group(1).split(".")[0] for m in re.finditer(r"^\s*([A-Za-z_][\w.]*)\s*$", out, re.M)}
 
 
@@ -96,8 +96,8 @@ def main() -> None:
     if not BUNDLE.exists():
         sys.exit("Build the app first (build.py); the notices list what PyInstaller bundled.")
     rule = "=" * 78
-    parts = ["Voice Guard - third-party notices", rule,
-             "Voice Guard itself is MIT-licensed, Copyright (c) 2026 Gorgho (see LICENSE).",
+    parts = ["Bleepline - third-party notices", rule,
+             "Bleepline itself is MIT-licensed, Copyright (c) 2026 Gorgho (see LICENSE).",
              "It is built on the components below. Thank you to all of their authors.", ""]
     index = []
     sections = []

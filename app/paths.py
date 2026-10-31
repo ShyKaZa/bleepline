@@ -7,7 +7,13 @@ IS_FROZEN = getattr(sys, "frozen", False)
 if IS_FROZEN:
     # Packaged exe may live in Program Files (read-only), so keep data per-user.
     APP_DIR = Path(sys.executable).resolve().parent
-    DATA_DIR = Path(os.environ.get("LOCALAPPDATA", Path.home())) / "VoiceGuard"
+    DATA_DIR = Path(os.environ.get("LOCALAPPDATA", Path.home())) / "Bleepline"
+    _LEGACY_DATA_DIR = DATA_DIR.with_name("VoiceGuard")  # versions before 1.1 were called Voice Guard
+    if _LEGACY_DATA_DIR.is_dir() and not DATA_DIR.exists():
+        try:
+            _LEGACY_DATA_DIR.rename(DATA_DIR)  # keeps models, settings and word lists
+        except OSError:
+            pass
 else:
     APP_DIR = Path(__file__).resolve().parent.parent
     DATA_DIR = APP_DIR

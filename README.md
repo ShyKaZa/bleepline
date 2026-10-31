@@ -1,16 +1,17 @@
 <p align="center">
-  <img src="assets/voiceguard-256.png" width="128" alt="Voice Guard logo">
+  <img src="assets/bleepline-256.png" width="128" alt="Bleepline logo">
 </p>
 
-<h1 align="center">Voice Guard</h1>
+<h1 align="center">Bleepline</h1>
 
 <p align="center">
   <b>Real-time profanity filter for streamers and creators. Free, open source, and 100% local.</b><br>
-  Mutes or bleeps banned words in Discord, game voice chat or any app before they reach your stream or your upload.
+  Mutes or bleeps banned words in Discord, game voice chat or any app before they reach your stream or your upload.<br>
+  <sub>Formerly called Voice Guard.</sub>
 </p>
 
 <p align="center">
-  <a href="https://github.com/ShyKaZa/voice-guard/releases/latest"><b>Download for Windows</b></a> ·
+  <a href="https://github.com/ShyKaZa/bleepline/releases/latest"><b>Download for Windows</b></a> ·
   <a href="SETUP.md">Full guide</a> ·
   <a href="#license-and-credits">License</a>
 </p>
@@ -23,14 +24,14 @@
 ## Why
 
 Streaming platforms hand out strikes for words *other people* say: a teammate in voice chat, a friend
-on Discord, a random player in game. Voice Guard listens to that audio, recognises speech on your own
+on Discord, a random player in game. Bleepline listens to that audio, recognises speech on your own
 PC with OpenAI's Whisper, and silences banned words in the copy your viewers get, all within about
 half a second.
 
 ## Features
 
 - **Filters what you receive**, not just your mic: Discord, in-game voice chat, desktop audio.
-- **OBS Studio plugin**: add the "Voice Guard" filter to any audio source; no virtual cable needed.
+- **OBS Studio plugin**: add the "Bleepline" filter to any audio source; no virtual cable needed.
 - **Streamlabs, XSplit, Twitch Studio and others** via VB-CABLE.
 - **Clean a recording** for YouTube: ShadowPlay, Game Bar or OBS recordings; the video is copied
   untouched and you get a list of every muted word with timestamps.
@@ -45,7 +46,7 @@ half a second.
 
 ## Get started
 
-1. Download **VoiceGuard-Setup.exe** from the [latest release](https://github.com/ShyKaZa/voice-guard/releases/latest)
+1. Download **Bleepline-Setup.exe** from the [latest release](https://github.com/ShyKaZa/bleepline/releases/latest)
    and run it. It installs for your Windows user only, so no admin rights are needed.
    The app isn't code-signed yet, so Windows may say *"Windows protected your PC"*: click
    **More info → Run anyway**.
@@ -96,7 +97,7 @@ Building the installer and the OBS plugin is described in the [full guide](SETUP
 
 ## License and credits
 
-Voice Guard is made by **Gorgho** and released under the [MIT License](LICENSE). The OBS plugin in
+Bleepline is made by **Gorgho** and released under the [MIT License](LICENSE). The OBS plugin in
 `obs-plugin-src/` is GPL-2.0-or-later, because it builds on OBS Studio's libobs.
 
 It stands on the shoulders of
@@ -112,10 +113,10 @@ and [OBS Studio](https://obsproject.com). Some modes use [VB-CABLE](https://vb-a
 VB-Audio, which you download from their site. Full license texts of every bundled component are in
 [THIRD_PARTY_NOTICES.txt](THIRD_PARTY_NOTICES.txt).
 
-Voice Guard is not affiliated with OBS, Discord, Twitch, YouTube or OpenAI. It is provided as is,
+Bleepline is not affiliated with OBS, Discord, Twitch, YouTube or OpenAI. It is provided as is,
 without warranty.
 
 ## Feedback
 
-Found a word it misses, a bug, or want a feature? [Open an issue](https://github.com/ShyKaZa/voice-guard/issues).
-If Voice Guard saves your stream, a star on the repo helps others find it.
+Found a word it misses, a bug, or want a feature? [Open an issue](https://github.com/ShyKaZa/bleepline/issues).
+If Bleepline saves your stream, a star on the repo helps others find it.

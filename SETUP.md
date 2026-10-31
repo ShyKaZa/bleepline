@@ -1,4 +1,4 @@
-# Voice Guard: full guide
+# Bleepline: full guide
 
 Local, real-time profanity filter for streamers and creators. It catches banned words in game audio,
 Discord, or any other app before they reach your stream or your upload. Speech recognition runs on
@@ -8,9 +8,9 @@ your own CPU (or GPU); nothing leaves your PC.
 
 | File | What it is |
 |---|---|
-| `VoiceGuard-Setup.exe` (~119 MB) | Installer. Installs for your Windows user only (no admin), adds Start menu / desktop shortcuts and an entry in **Settings → Apps** with an uninstaller. Re-run a newer one to update; downloads and settings are kept. |
-| `VoiceGuard-portable-win64.zip` (~108 MB) | Same app, no install: unzip anywhere and run `VoiceGuard.exe`. |
-| `VoiceGuard-OBS-plugin.zip` | Only the OBS filter, with manual install steps. The app can install it for you instead. |
+| `Bleepline-Setup.exe` (~119 MB) | Installer. Installs for your Windows user only (no admin), adds Start menu / desktop shortcuts and an entry in **Settings → Apps** with an uninstaller. Re-run a newer one to update; downloads and settings are kept. |
+| `Bleepline-portable-win64.zip` (~108 MB) | Same app, no install: unzip anywhere and run `Bleepline.exe`. |
+| `Bleepline-OBS-plugin.zip` | Only the OBS filter, with manual install steps. The app can install it for you instead. |
 
 The builds aren't code-signed yet, so Windows SmartScreen may say "Windows protected your PC" the
 first time: click **More info → Run anyway**.
@@ -19,9 +19,9 @@ first time: click **More info → Run anyway**.
 
 | Thing | Where | How to remove |
 |---|---|---|
-| The app | `%LOCALAPPDATA%\Programs\Voice Guard` (installer) or wherever you unzipped it | Settings → Apps → Voice Guard → Uninstall, or Manage tab → Uninstall |
-| Speech models, GPU runtime, settings | `%LOCALAPPDATA%\VoiceGuard` | Manage tab (per item, or "Remove everything"), or tick the box when uninstalling |
-| OBS plugin | `C:\ProgramData\obs-studio\plugins\voice-guard-filter` | Manage tab, or tick the box when uninstalling |
+| The app | `%LOCALAPPDATA%\Programs\Bleepline` (installer) or wherever you unzipped it | Settings → Apps → Bleepline → Uninstall, or Manage tab → Uninstall |
+| Speech models, GPU runtime, settings | `%LOCALAPPDATA%\Bleepline` | Manage tab (per item, or "Remove everything"), or tick the box when uninstalling |
+| OBS plugin | `C:\ProgramData\obs-studio\plugins\bleepline-filter` | Manage tab, or tick the box when uninstalling |
 | VB-CABLE (optional) | Windows driver from VB-Audio | Its own installer: run `VBCABLE_Setup_x64.exe` as administrator → **Remove Driver** |
 
 The **Manage** tab lists everything with its size. The uninstaller removes the app, its shortcuts and
@@ -42,37 +42,37 @@ clean only the copy that goes to viewers.
 ### OBS Studio
 
 1. Setup tab → **Install everything** (or **OBS plugin → Install**). This copies the plugin to
-   `C:\ProgramData\obs-studio\plugins\voice-guard-filter\bin\64bit\`, where OBS 30–33 load it.
+   `C:\ProgramData\obs-studio\plugins\bleepline-filter\bin\64bit\`, where OBS 30–33 load it.
    Restart OBS.
 2. In OBS, right-click an audio source (Desktop Audio, your mic, a Discord or game Application Audio
-   Capture) → **Filters** → **+** → **Voice Guard (profanity filter)**. Set the delay and
+   Capture) → **Filters** → **+** → **Bleepline (profanity filter)**. Set the delay and
    silence/beep there (default 500 ms, silence).
 3. Add OBS's built-in **Render Delay** filter to your webcam and game capture with the same delay so
    video stays in sync with the delayed audio.
-4. Keep Voice Guard open in **OBS Studio** mode and press **Start filtering**. The Live tab shows
+4. Keep Bleepline open in **OBS Studio** mode and press **Start filtering**. The Live tab shows
    which OBS sources are connected and every word that gets muted.
 
-If Voice Guard isn't running, the filter still passes audio through (delayed), so starting or
+If Bleepline isn't running, the filter still passes audio through (delayed), so starting or
 stopping the app never shifts your audio/video sync. It reconnects by itself within a second.
 
 ### Streamlabs, XSplit, Twitch Studio or any other app
 
 1. Install VB-CABLE (Setup tab → **Get VB-CABLE**, run the installer as administrator, reboot).
-2. In Voice Guard pick **Streamlabs, XSplit, ...** and choose the device you listen on (your headset).
-   Voice Guard records what plays there and sends a cleaned, delayed copy into **CABLE Input**.
+2. In Bleepline pick **Streamlabs, XSplit, ...** and choose the device you listen on (your headset).
+   Bleepline records what plays there and sends a cleaned, delayed copy into **CABLE Input**.
 3. In your streaming app, turn off its own desktop/system audio and add **CABLE Output (VB-Audio
    Virtual Cable)** as an audio input instead. Delay your video by the same amount if the app can.
 
 ### Clean a recording
 
-Pick a file and press **Clean recording**. Voice Guard analyses the whole file (all audio tracks)
+Pick a file and press **Clean recording**. Bleepline analyses the whole file (all audio tracks)
 with full sentence context, so it's more accurate than live filtering. It writes
 `<name> (clean).<ext>` with the video stream copied byte-for-byte and only the audio re-encoded, plus
 a `- muted words.txt` list with timestamps so you can check before uploading.
 
 ### Filter what I hear
 
-Set Discord's *Output Device* to **CABLE Input (VB-Audio Virtual Cable)**. Voice Guard plays the
+Set Discord's *Output Device* to **CABLE Input (VB-Audio Virtual Cable)**. Bleepline plays the
 cleaned call into your headset, and OBS's Desktop Audio picks it up. Don't capture Discord in OBS with
 *Application Audio Capture*: that records the raw call.
 
@@ -120,7 +120,7 @@ folder**). It then shows up everywhere the built-in models do.
 - **Censor sound:** silence, a beep (pitch 300–3000 Hz) or **your own sound file** (any audio
   format, first 5 seconds, restarted for each word and repeated for long ones). There's a volume
   slider and a Preview button. It applies to live filtering, OBS (the filter's default "Use the
-  Voice Guard app's setting") and cleaned recordings.
+  Bleepline app's setting") and cleaned recordings.
 - **Appearance:** dark (default), light, or same as Windows; switches instantly.
 - **Startup:** start with Windows, optionally minimized. Combined with "Start filtering
   automatically" it's set-and-forget.
@@ -128,7 +128,7 @@ folder**). It then shows up everywhere the built-in models do.
 ## Models and resource use
 
 Live filtering runs on the **CPU by default** and leaves the GPU free for games. Normally Whisper
-pads every check to 30 seconds of audio. Voice Guard feeds it only the live window (3–4 s of
+pads every check to 30 seconds of audio. Bleepline feeds it only the live window (3–4 s of
 context), which is about 36× less work for the same words. Idle engine threads sleep between checks,
 and nothing runs at all while no one is speaking.
 
@@ -173,7 +173,7 @@ venv/Scripts/pip install -r requirements.txt
 venv/Scripts/python main.py
 ```
 
-From source, data lives in this folder; the packaged app keeps it in `%LOCALAPPDATA%\VoiceGuard`.
+From source, data lives in this folder; the packaged app keeps it in `%LOCALAPPDATA%\Bleepline`.
 
 ```bash
 venv/Scripts/pip install -r requirements-build.txt
@@ -191,13 +191,13 @@ Windows runner and publishes the release with the three downloads.
 This writes the three downloads above to `release/`. Models, the GPU runtime and VB-CABLE are
 downloaded from the Setup tab on first run.
 
-Command-line switches: `VoiceGuard.exe --selftest` checks an install and writes `selftest.log` to the
-data folder; `VoiceGuard.exe --uninstall [--silent] [--keep-data]` is the uninstaller;
-`VoiceGuard-Setup.exe --silent [--dir PATH] [--desktop] [--launch]` installs without a window.
+Command-line switches: `Bleepline.exe --selftest` checks an install and writes `selftest.log` to the
+data folder; `Bleepline.exe --uninstall [--silent] [--keep-data]` is the uninstaller;
+`Bleepline-Setup.exe --silent [--dir PATH] [--desktop] [--launch]` installs without a window.
 
 ### Building the OBS plugin
 
-The plugin (`obs-plugin-src/voice-guard-filter.c`) is plain C, built with Zig instead of Visual Studio,
+The plugin (`obs-plugin-src/bleepline-filter.c`) is plain C, built with Zig instead of Visual Studio,
 against OBS 30 headers so it loads in OBS 30 and newer:
 
 ```bash
@@ -239,7 +239,7 @@ touched). OBS writes a shader cache to `C:\ProgramData\obs-studio\shader-cache` 
 
 ## About VB-CABLE
 
-VB-CABLE is made by [VB-Audio](https://vb-audio.com/Cable/), not by Voice Guard, and you download it
+VB-CABLE is made by [VB-Audio](https://vb-audio.com/Cable/), not by Bleepline, and you download it
 from their site. It's donationware: free for personal use with every feature, and VB-Audio asks for a
 paid license when it's used professionally (in a company, institution or organization). If it's
 useful to you, please consider supporting them.
