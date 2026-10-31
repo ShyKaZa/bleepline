@@ -228,3 +228,10 @@ touched). OBS writes a shader cache to `C:\ProgramData\obs-studio\shader-cache` 
 - Mumbled, very fast or accented speech, and voices buried under loud game audio, can slip through.
 - Streamlabs Desktop mostly doesn't run OBS plugins, so Streamlabs users need the VB-CABLE mode.
 - VB-CABLE is a driver, so it needs administrator rights and a reboot.
+
+## About VB-CABLE
+
+VB-CABLE is made by [VB-Audio](https://vb-audio.com/Cable/), not by Voice Guard, and you download it
+from their site. It's donationware: free for personal use with every feature, and VB-Audio asks for a
+paid license when it's used professionally (in a company, institution or organization). If it's
+useful to you, please consider supporting them.

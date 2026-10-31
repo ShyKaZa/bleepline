@@ -902,7 +902,8 @@ class VoiceGuardApp(tk.Tk):
             f, wraplength=WRAP, justify="left",
             text=("Everything Voice Guard needs. \"Install everything\" installs what's missing below plus the "
                   "tiny.en and base.en speech models (more models in the Models tab). VB-CABLE is a driver from "
-                  "VB-Audio and is only needed for the Streamlabs/XSplit/other and Filter-what-I-hear modes."),
+                  "VB-Audio and is only needed for the Streamlabs/XSplit/other and Filter-what-I-hear modes. It's "
+                  "donationware: free for personal use, so if it helps you, consider supporting VB-Audio."),
         ).pack(anchor="w", padx=10, pady=(12, 6))
         self.install_all_btn = ttk.Button(f, text="Install everything", command=self._install_all)
         self.install_all_btn.pack(anchor="w", padx=10, pady=(0, 8))
@@ -1134,6 +1135,7 @@ class VoiceGuardApp(tk.Tk):
                 ("Hugging Face Hub", "model downloads", "Apache-2.0"),
                 ("Sun Valley ttk theme", "dark and light look", "MIT"),
                 ("OBS Studio", "the OBS plugin builds on libobs", "GPL-2.0"),
+                ("VB-CABLE by VB-Audio", "virtual cable for some modes (separate download)", "donationware"),
                 ("NVIDIA cuDNN / cuBLAS", "optional GPU acceleration", "NVIDIA license"),
                 ("Python and Tcl/Tk", "runtime and window toolkit", "PSF / BSD-style"),
         )):

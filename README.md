@@ -56,9 +56,14 @@ half a second.
 | You use | Pick | Extra needed |
 |---|---|---|
 | OBS Studio | OBS Studio | the OBS plugin (installed from the app) |
-| Streamlabs, XSplit, Twitch Studio, ... | Streamlabs, XSplit, ... | [VB-CABLE](https://vb-audio.com/Cable/) |
-| Voice chat cleaned in your own headset | Filter what I hear | VB-CABLE |
+| Streamlabs, XSplit, Twitch Studio, ... | Streamlabs, XSplit, ... | [VB-CABLE](https://vb-audio.com/Cable/)* |
+| Voice chat cleaned in your own headset | Filter what I hear | VB-CABLE* |
 | A recording for YouTube | the Clean a recording tab | nothing |
+
+\* [VB-CABLE](https://vb-audio.com/Cable/) is a separate virtual audio driver made by VB-Audio. It's
+donationware: free for personal use, with a paid license for use in companies and organizations. If
+it's useful to you, please consider [supporting VB-Audio](https://shop.vb-audio.com). The OBS mode
+doesn't need it.
 
 Step-by-step setup for each mode, all options, and measured results are in the **[full guide](SETUP.md)**.
 
@@ -103,7 +108,8 @@ the [LDNOOBW word lists](https://github.com/LDNOOBW/List-of-Dirty-Naughty-Obscen
 [sounddevice](https://github.com/spatialaudio/python-sounddevice), [SoundCard](https://github.com/bastibe/SoundCard),
 [PyAV](https://github.com/PyAV-Org/PyAV) / FFmpeg,
 the [Sun Valley ttk theme](https://github.com/rdbende/Sun-Valley-ttk-theme)
-and [OBS Studio](https://obsproject.com). Full license texts of every bundled component are in
+and [OBS Studio](https://obsproject.com). Some modes use [VB-CABLE](https://vb-audio.com/Cable/) by
+VB-Audio, which you download from their site. Full license texts of every bundled component are in
 [THIRD_PARTY_NOTICES.txt](THIRD_PARTY_NOTICES.txt).
 
 Voice Guard is not affiliated with OBS, Discord, Twitch, YouTube or OpenAI. It is provided as is,
