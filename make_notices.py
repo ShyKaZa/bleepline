@@ -7,6 +7,7 @@ components that aren't Python packages (FFmpeg, cuDNN, speech models, ...) are l
 License texts that a package doesn't ship itself live in notices/.
 """
 import re
+import shutil
 import subprocess
 import sys
 from importlib.metadata import distributions
@@ -63,7 +64,8 @@ EXTRAS = [
 
 def archived_modules() -> set[str]:
     """Top-level names of the pure-Python modules PyInstaller packed inside VoiceGuard.exe."""
-    out = subprocess.run([str(Path(sys.executable).parent / "pyi-archive_viewer"), "--recursive", "--brief",
+    viewer = shutil.which("pyi-archive_viewer") or str(Path(sys.executable).parent / "pyi-archive_viewer")
+    out = subprocess.run([viewer, "--recursive", "--brief",
                           str(BUNDLE.parent / "VoiceGuard.exe")], capture_output=True, text=True).stdout
     return {m.group(1).split(".")[0] for m in re.finditer(r"^\s*([A-Za-z_][\w.]*)\s*$", out, re.M)}
 
@@ -119,7 +121,8 @@ def main() -> None:
     for title, lic, url, path in EXTRAS:
         short = "various (see below)" if lic.count(",") > 7 else re.split(r"\. |;| \(| by ", lic)[0].strip(" ,")
         index.append(f"  {title.split(' (')[0][:38]:40s} {short[:36]}")
-        sections.append((title, lic, url, [path.read_text(encoding="utf-8", errors="replace")] if path else []))
+        text = path.read_text(encoding="utf-8", errors="replace") if path and path.exists() else None
+        sections.append((title, lic, url, [text] if text else []))
 
     parts += ["Components:", *index, ""]
     for title, lic, url, texts in sections:

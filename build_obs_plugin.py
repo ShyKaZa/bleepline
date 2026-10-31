@@ -2,8 +2,9 @@
 
     venv/Scripts/python build_obs_plugin.py  ->  obs-plugin/voice-guard-filter.dll
 
-Compiles against OBS 30 headers so the plugin loads in OBS 30 and newer, and links
-against an obs.dll (only its export names are used to build the import library).
+Compiles against OBS 30 headers so the plugin loads in OBS 30 and newer. Linking only needs obs.dll's
+export names: they're read from an OBS install in tools/obs-33 when present (and saved to
+obs-plugin-src/obs.def), otherwise taken from that saved file, so a clean machine needs just the headers.
 """
 import struct
 import subprocess
@@ -15,6 +16,7 @@ HEADERS = ROOT / "tools" / "obs-src-30" / "libobs"
 OBS_DLL = ROOT / "tools" / "obs-33" / "bin" / "64bit" / "obs.dll"
 BUILD = ROOT / "tools" / "build"
 SOURCE = ROOT / "obs-plugin-src" / "voice-guard-filter.c"
+SAVED_DEF = ROOT / "obs-plugin-src" / "obs.def"
 OUT = ROOT / "obs-plugin" / "voice-guard-filter.dll"
 
 
@@ -54,9 +56,12 @@ def zig(*args):
 def main():
     BUILD.mkdir(parents=True, exist_ok=True)
     OUT.parent.mkdir(parents=True, exist_ok=True)
-    names = dll_exports(OBS_DLL)
-    (BUILD / "obs.def").write_text("LIBRARY obs.dll\nEXPORTS\n" + "\n".join(names) + "\n")
-    zig("dlltool", "-m", "i386:x86-64", "-d", BUILD / "obs.def", "-l", BUILD / "libobs.dll.a")
+    if OBS_DLL.exists():
+        names = dll_exports(OBS_DLL)
+        SAVED_DEF.write_text("LIBRARY obs.dll\nEXPORTS\n" + "\n".join(names) + "\n", newline="\n")
+    else:
+        names = SAVED_DEF.read_text().splitlines()[2:]
+    zig("dlltool", "-m", "i386:x86-64", "-d", SAVED_DEF, "-l", BUILD / "libobs.dll.a")
     zig("cc", "-target", "x86_64-windows-gnu", "-shared", "-O2", "-Wall",
         f"-I{ROOT / 'obs-plugin-src' / 'include'}", f"-I{HEADERS}",
         SOURCE, BUILD / "libobs.dll.a", "-lws2_32", "-o", OUT)

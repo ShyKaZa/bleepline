@@ -1,0 +1,70 @@
+# Builds Voice Guard on GitHub's Windows servers and publishes the downloads.
+# Push a tag like v1.0.1 (matching app/version.py) to release; notes come from docs/release-notes/<tag>.md.
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing tag to build and (re)publish, e.g. v1.0.0"
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    env:
+      TAG: ${{ inputs.tag || github.ref_name }}
+      GH_TOKEN: ${{ github.token }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements-build.txt
+
+      - name: Check the tag matches app/version.py
+        run: |
+          version=$(python -c "import sys; sys.path.insert(0, '.'); from app.version import VERSION; print(VERSION)")
+          [ "v$version" = "$TAG" ] || { echo "::error::Tag $TAG but app/version.py says $version"; exit 1; }
+
+      - name: Install build dependencies
+        run: python -m pip install -r requirements-build.txt
+
+      - name: Get the OBS 30 headers
+        run: |
+          git clone --depth 1 --branch 30.0.2 --filter=blob:none --sparse https://github.com/obsproject/obs-studio.git tools/obs-src-30
+          git -C tools/obs-src-30 sparse-checkout set libobs
+
+      - name: Build the OBS plugin
+        run: python build_obs_plugin.py
+
+      - name: Build the app, installer and zips
+        run: python build.py
+
+      - name: Keep the files as a workflow artifact too
+        uses: actions/upload-artifact@v4
+        with:
+          name: voice-guard-${{ env.TAG }}
+          path: release/*
+
+      - name: Publish the GitHub release
+        run: |
+          notes="docs/release-notes/$TAG.md"
+          [ -f "$notes" ] || { echo "Release notes for $TAG." > /tmp/notes.md; notes=/tmp/notes.md; }
+          # Draft first, so nobody sees a release with missing downloads.
+          gh release view "$TAG" >/dev/null 2>&1 ||
+            gh release create "$TAG" --draft --verify-tag --title "Voice Guard ${TAG#v}" --notes-file "$notes"
+          gh release upload "$TAG" release/* --clobber
+          gh release edit "$TAG" --draft=false --latest

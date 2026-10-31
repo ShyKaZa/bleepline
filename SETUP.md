@@ -176,10 +176,17 @@ venv/Scripts/python main.py
 From source, data lives in this folder; the packaged app keeps it in `%LOCALAPPDATA%\VoiceGuard`.
 
 ```bash
-venv/Scripts/pip install pyinstaller
+venv/Scripts/pip install -r requirements-build.txt
 venv/Scripts/python build_obs_plugin.py
 venv/Scripts/python build.py
 ```
+
+`requirements-build.txt` pins the exact versions release builds use.
+
+**Releases are built by GitHub**, not on a PC: bump `VERSION` in `app/version.py`, add
+`docs/release-notes/v<version>.md`, commit, then push a matching tag (`git tag v1.0.1` and
+`git push origin v1.0.1`). The [Release workflow](.github/workflows/release.yml) builds everything on a
+Windows runner and publishes the release with the three downloads.
 
 This writes the three downloads above to `release/`. Models, the GPU runtime and VB-CABLE are
 downloaded from the Setup tab on first run.
@@ -201,8 +208,9 @@ git -C tools/obs-src-30 sparse-checkout set libobs
 venv/Scripts/python build_obs_plugin.py
 ```
 
-Only `obs.dll`'s export names are used, to build the import library. Run `build_obs_plugin.py` before
-`build.py` so the exe ships the plugin.
+Only `obs.dll`'s export names are used, to build the import library. They're saved in
+`obs-plugin-src/obs.def`, so without `tools/obs-33` the build uses that file and needs only the
+headers. Run `build_obs_plugin.py` before `build.py` so the exe ships the plugin.
 
 ## Tests
 

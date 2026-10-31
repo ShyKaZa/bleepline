@@ -1,0 +1,16 @@
+# Exact versions used for release builds (build.py, build_obs_plugin.py, the GitHub release workflow).
+# requirements.txt has the loose minimums for running from source.
+sounddevice==0.5.6
+numpy==2.5.4
+faster-whisper==1.2.1
+ctranslate2==4.8.4
+av==19.0.2
+onnxruntime==1.31.1
+tokenizers==0.23.3
+huggingface_hub==2.4.0
+better-profanity==0.7.0
+SoundCard==0.4.6
+sv-ttk==2.6.1
+pyinstaller==6.22.3
+pyinstaller-hooks-contrib==2026.9
+ziglang==0.16.0
