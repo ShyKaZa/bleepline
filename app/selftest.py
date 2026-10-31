@@ -16,12 +16,17 @@ def run() -> int:
 
         lines.append(f"data dir: {DATA_DIR}")
         lines.append(f"gpu: {st.nvidia_gpu_name()} | gpu runtime installed: {st.gpu_runtime_installed()}")
-        inputs, outputs = devices.list_devices()
-        lines.append(f"devices: {len(inputs)} inputs, {len(outputs)} outputs | VB-CABLE: {devices.find_cable_capture()}")
         import soundcard
 
-        loopbacks = [m.name for m in soundcard.all_microphones(include_loopback=True) if m.isloopback]
-        lines.append(f"desktop audio capture: {len(loopbacks)} output devices can be captured")
+        try:  # a PC without sound devices (or a build server) still gets the speech engine checked below
+            inputs, outputs = devices.list_devices()
+            lines.append(f"devices: {len(inputs)} inputs, {len(outputs)} outputs | "
+                         f"VB-CABLE: {devices.find_cable_capture()}")
+            loopbacks = [m.name for m in soundcard.all_microphones(include_loopback=True) if m.isloopback]
+            lines.append(f"desktop audio capture: {len(loopbacks)} output devices can be captured")
+        except Exception as exc:
+            ok = False
+            lines.append(f"audio devices: FAILED ({type(exc).__name__}: {exc})")
         import av
 
         lines.append(f"recording cleaner: PyAV {av.__version__}")

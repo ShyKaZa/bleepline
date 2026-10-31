@@ -56,8 +56,20 @@ jobs:
       - name: Build the app, installer and zips
         run: python build.py
 
+      - name: Self-test the built app with a real speech model
+        run: |
+          python -c "import os; from huggingface_hub import snapshot_download; snapshot_download('Systran/faster-whisper-tiny.en', local_dir=os.path.join(os.environ['LOCALAPPDATA'], 'VoiceGuard', 'models', 'tiny.en'))"
+          ./dist/VoiceGuard/VoiceGuard.exe --selftest || true
+          log="$LOCALAPPDATA/VoiceGuard/selftest.log"
+          cat "$log"
+          # Build servers have no audio devices, so only the packaging and the speech engine must pass here.
+          if grep -v "^audio devices: FAILED" "$log" | grep -q "Error\|Traceback"; then
+            echo "::error::The built app failed its self-test"; exit 1
+          fi
+          grep -q "live CPU engine (short window): ok" "$log"
+
       - name: Keep the files as a workflow artifact too
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: voice-guard-${{ env.TAG || 'test-build' }}
           path: release/*
