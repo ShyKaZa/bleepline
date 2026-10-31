@@ -1,5 +1,6 @@
 # Builds Voice Guard on GitHub's Windows servers and publishes the downloads.
 # Push a tag like v1.0.1 (matching app/version.py) to release; notes come from docs/release-notes/<tag>.md.
+# Run it by hand without a tag for a test build: the files are kept as a workflow artifact, nothing is published.
 name: Release
 
 on:
@@ -8,8 +9,9 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: "Existing tag to build and (re)publish, e.g. v1.0.0"
-        required: true
+        description: "Existing tag to build and publish (e.g. v1.0.1); leave empty for a test build"
+        required: false
+        default: ""
 
 permissions:
   contents: write
@@ -18,7 +20,7 @@ jobs:
   build:
     runs-on: windows-latest
     env:
-      TAG: ${{ inputs.tag || github.ref_name }}
+      TAG: ${{ github.event_name == 'push' && github.ref_name || inputs.tag }}
       GH_TOKEN: ${{ github.token }}
     defaults:
       run:
@@ -26,7 +28,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
         with:
-          ref: ${{ inputs.tag || github.ref }}
+          ref: ${{ inputs.tag || github.ref }}  # empty input = the branch the run was started on
 
       - uses: actions/setup-python@v6
         with:
@@ -35,6 +37,7 @@ jobs:
           cache-dependency-path: requirements-build.txt
 
       - name: Check the tag matches app/version.py
+        if: env.TAG != ''
         run: |
           version=$(python -c "import sys; sys.path.insert(0, '.'); from app.version import VERSION; print(VERSION)")
           [ "v$version" = "$TAG" ] || { echo "::error::Tag $TAG but app/version.py says $version"; exit 1; }
@@ -56,10 +59,11 @@ jobs:
       - name: Keep the files as a workflow artifact too
         uses: actions/upload-artifact@v4
         with:
-          name: voice-guard-${{ env.TAG }}
+          name: voice-guard-${{ env.TAG || 'test-build' }}
           path: release/*
 
       - name: Publish the GitHub release
+        if: env.TAG != ''
         run: |
           notes="docs/release-notes/$TAG.md"
           [ -f "$notes" ] || { echo "Release notes for $TAG." > /tmp/notes.md; notes=/tmp/notes.md; }
