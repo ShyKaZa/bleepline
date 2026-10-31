@@ -1,0 +1,22 @@
+# local environment and build output
+venv/
+build/
+dist/
+release/
+__pycache__/
+*.pyc
+
+# downloaded at runtime or for development (models, GPU runtime, portable OBS, OBS headers)
+models/
+runtime/
+tools/
+obs-plugin/
+
+# personal settings and word lists of whoever runs it from source
+settings.json
+custom_words.txt
+allowed_words.txt
+wordlists/
+sounds/
+selftest.log
+reports/
