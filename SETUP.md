@@ -8,7 +8,7 @@ your own CPU (or GPU); nothing leaves your PC.
 
 | File | What it is |
 |---|---|
-| `Bleepline-Setup.exe` (~70 MB) | Installer. Installs for your Windows user only (no admin), adds Start menu / desktop shortcuts and an entry in **Settings → Apps** with an uninstaller. Re-run a newer one to update: it closes Bleepline, updates it in place, and keeps your downloads and settings. |
+| `Bleepline-Setup.exe` (~67 MB) | Installer. Installs for your Windows user only (no admin), adds Start menu / desktop shortcuts and an entry in **Settings → Apps** with an uninstaller. Re-run a newer one to update: it closes Bleepline, updates it in place, and keeps your downloads and settings. |
 | `Bleepline-portable-win64.zip` (~100 MB) | Same app, no install: unzip anywhere and run `Bleepline.exe`. |
 | `Bleepline-OBS-plugin.zip` | Only the OBS filter, with manual install steps. The app can install it for you instead. |
 
