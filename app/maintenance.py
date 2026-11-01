@@ -89,14 +89,3 @@ def is_installed_copy() -> bool:
     """True when this exe is the copy the installer registered (vs. the portable zip or source)."""
     d = winsetup.installed_dir()
     return IS_FROZEN and d is not None and d.resolve() == APP_DIR.resolve()
-
-
-def uninstall(remove_data: bool, remove_plugin: bool) -> None:
-    winsetup.remove_shortcuts()
-    winsetup.unregister()
-    if remove_plugin and st.obs_plugin_installed():
-        remove_obs_plugin()
-    if remove_data:
-        shutil.rmtree(DATA_DIR, ignore_errors=True)
-    if IS_FROZEN:
-        winsetup.schedule_folder_delete(APP_DIR)

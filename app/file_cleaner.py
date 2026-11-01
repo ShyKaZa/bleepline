@@ -1,4 +1,5 @@
 """Clean a finished recording: transcribe it with full context, mute banned words, leave video untouched."""
+import os
 from pathlib import Path
 
 import av
@@ -8,8 +9,12 @@ from . import wordlists
 from .censor_sound import CensorVoice, replacement_clip
 from .detector import ASR_RATE, DEFAULT_MIN_PROB, banned_spans, load_model, resolve_language
 
+from faster_whisper import BatchedInferencePipeline  # after .detector, which prepares the engine's environment
+
 RAMP_SEC = 0.005
 AUDIO_ONLY_FALLBACK = ".m4a"
+FILE_CPU_THREADS = max(2, (os.cpu_count() or 4) // 2)  # one-off job without a GPU: use half the CPU
+BATCH_SIZE = 8
 
 
 def default_output_path(src: Path) -> Path:
@@ -29,22 +34,16 @@ def clean_file(src, dst=None, model_size="base.en", mute_mode="silence", pad_bef
     progress = progress or (lambda f, s: None)
     log = log or (lambda t: None)
     matcher = matcher or wordlists.build_matcher()
-    model, device, _ = model_bundle or load_model(model_size)
+    model, device, _ = model_bundle or load_model(model_size, cpu_threads=FILE_CPU_THREADS)
     lang = resolve_language(model, language)
     log(f"Transcribing with {model_size} on {device.upper()} (language: {lang or 'auto-detect'})...")
 
     tracks, duration = _decode_for_asr(src, lambda f: progress(f * 0.2, "Reading audio"))
     catches, ranges = [], []
     for n, (index, audio) in enumerate(tracks.items()):
-        segments, _ = model.transcribe(
-            audio, language=lang, beam_size=5, word_timestamps=True, vad_filter=True,
-            condition_on_previous_text=False,
-        )
-        words = []
-        for seg in segments:
-            words += seg.words or []
-            base = 0.2 + 0.6 * n / len(tracks)
-            progress(base + 0.6 / len(tracks) * min(1.0, seg.end / max(duration, 1e-3)), "Finding banned words")
+        base = 0.2 + 0.6 * n / len(tracks)
+        words = _transcribe(model, audio, lang, lambda end: progress(
+            base + 0.6 / len(tracks) * min(1.0, end / max(duration, 1e-3)), "Finding banned words"), log)
         # Whole-track matching, so phrases split across Whisper segments are still found.
         for start_s, end_s, text in banned_spans(matcher, words, min_prob):
             catches.append((float(start_s), text))
@@ -58,6 +57,28 @@ def clean_file(src, dst=None, model_size="base.en", mute_mode="silence", pad_bef
     _write_report(dst, catches)
     progress(1.0, "Done")
     return dst, catches
+
+
+def _transcribe(model, audio, lang, progress, log):
+    """Word objects for a whole track. Batched decoding is ~2x faster (measured on 8 CPU threads); if it
+    fails, e.g. a small GPU running out of memory, the track is redone one segment at a time."""
+    try:
+        segments, _ = BatchedInferencePipeline(model).transcribe(
+            audio, language=lang, beam_size=5, word_timestamps=True, batch_size=BATCH_SIZE)
+        return _collect(segments, progress)
+    except Exception as exc:
+        log(f"Batched transcription failed ({str(exc).splitlines()[0][:80]}), retrying one segment at a time...")
+    segments, _ = model.transcribe(audio, language=lang, beam_size=5, word_timestamps=True, vad_filter=True,
+                                   condition_on_previous_text=False)
+    return _collect(segments, progress)
+
+
+def _collect(segments, progress):
+    words = []
+    for seg in segments:
+        words += seg.words or []
+        progress(seg.end)
+    return words
 
 
 def _decode_for_asr(src: Path, progress):

@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- SignPath artifact configuration "setup": the Inno Setup installer, uploaded as a single file (not zipped).
+     Paste into SignPath (see SIGNING.md). -->
+<artifact-configuration xmlns="http://signpath.io/artifact-configuration/v1">
+  <parameters>
+    <parameter name="version" required="true" />
+  </parameters>
+  <pe-file product-name="Bleepline" product-version="${version}">
+    <authenticode-sign />
+  </pe-file>
+</artifact-configuration>

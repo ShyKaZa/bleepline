@@ -38,11 +38,13 @@ half a second.
 - **Light on your PC**: about 3-4% CPU with the default model; your GPU stays free for games.
 - **500-600 ms delay** for live filtering, with optional *early muting* for shorter delays.
 - **Silence, beep or your own sound** as the censor.
-- **Your words, your rules**: built-in English list, 25 language lists, wildcards (`word*`), phrases,
-  an allow list, and import from text files.
+- **Your words, your rules**: built-in English lists made for voice chat (strong swearing, slurs and sexual
+  words on; mild words like hell or damn optional), 25 language lists, wildcards (`word*`), phrases, an allow
+  list, and import from text files. Everyday game talk like "kill", "sniper" or "god" is left alone.
 - **Any Whisper model**: download from the app (tiny to large-v3-turbo) or add your own folder.
-- **Dark and light themes**, one-click installer, full uninstaller that can remove everything it downloaded.
-- **Private**: no account, no cloud, nothing you hear leaves your computer.
+- **Dark and light themes**, a small installer, and an uninstaller that can remove everything it downloaded.
+- **Private**: no account, no cloud, nothing you hear leaves your computer. The only network traffic is
+  downloads you start and, if you leave it on, a once-a-day check for a new version on GitHub.
 
 ## Get started
 
@@ -75,10 +77,20 @@ Step-by-step setup for each mode, all options, and measured results are in the *
 
 ## How well does it work?
 
-In tests with recorded speech it mutes most banned words completely at 500-600 ms (see the
-[results](SETUP.md#how-reliable-is-it)). Real voices are messier: mumbling, heavy accents or loud game
-audio can let a word slip through, and words that sound alike can get muted. Treat it as a strong
-safety net, **not a guarantee**. Every catch is logged so you can see what it did.
+Measured on 12 synthesized clips with 24 swear words (`test_replay.py`, default tiny.en model on the CPU):
+
+| Delay | Swear words fully muted | Swear-word audio muted |
+|---|---|---|
+| 500 ms | 12 of 24 | 78% |
+| 600 ms (default) | 14 of 24 | 84% |
+| 800 ms | 19 of 24 | 93% |
+
+What slips through is usually just the first part of a word, because a word can only be recognised once
+most of it has been said. A longer delay gives the filter more time, so if your setup allows it, 800 ms is
+noticeably safer (the Live filter tab has a button for it). Real voices are messier still: mumbling, heavy
+accents or loud game audio can let a word slip through, and words that sound alike can get muted. Treat it
+as a strong safety net, **not a guarantee**. Every catch is logged so you can see what it did. More results
+are in the [guide](SETUP.md#how-reliable-is-it).
 
 English is the best tested. Other languages work with the multilingual models and per-language word
 lists; picking the language instead of auto-detect helps a lot.
@@ -93,7 +105,8 @@ venv/Scripts/pip install -r requirements.txt
 venv/Scripts/python main.py
 ```
 
-Building the installer and the OBS plugin is described in the [full guide](SETUP.md#running-from-source--building).
+Building the installer (Inno Setup) and the OBS plugin is described in the
+[full guide](SETUP.md#running-from-source--building).
 
 ## License and credits
 
@@ -102,9 +115,10 @@ Bleepline is made by **Gorgho** and released under the [MIT License](LICENSE). T
 
 It stands on the shoulders of
 [OpenAI Whisper](https://github.com/openai/whisper),
-[faster-whisper](https://github.com/SYSTRAN/faster-whisper) and [CTranslate2](https://github.com/OpenNMT/CTranslate2),
+[faster-whisper](https://github.com/SYSTRAN/faster-whisper) and [CTranslate2](https://github.com/OpenNMT/CTranslate2)
+(whose official build includes Intel oneMKL and oneDNN),
 [Silero VAD](https://github.com/snakers4/silero-vad),
-[better_profanity](https://github.com/snguyenthanh/better_profanity),
+[better_profanity](https://github.com/snguyenthanh/better_profanity) (the optional strict word list),
 the [LDNOOBW word lists](https://github.com/LDNOOBW/List-of-Dirty-Naughty-Obscene-and-Otherwise-Bad-Words) (CC BY 4.0),
 [sounddevice](https://github.com/spatialaudio/python-sounddevice), [SoundCard](https://github.com/bastibe/SoundCard),
 [PyAV](https://github.com/PyAV-Org/PyAV) / FFmpeg,
@@ -115,6 +129,20 @@ VB-Audio, which you download from their site. Full license texts of every bundle
 
 Bleepline is not affiliated with OBS, Discord, Twitch, YouTube or OpenAI. It is provided as is,
 without warranty.
+
+## Privacy
+
+Bleepline does not collect or send anything about you or what you hear. It goes online only when you
+ask it to (downloading speech models, the GPU runtime or word lists) and, if you leave the option on, to ask
+GitHub once a day whether there's a newer version. The installer asks about that check, and it can be
+switched off in Options.
+
+## Code signing policy
+
+The downloads aren't code-signed yet, so Windows may warn before running them. Bleepline is applying for
+free open-source code signing from [SignPath Foundation](https://signpath.org) (see [SIGNING.md](SIGNING.md)).
+Once that's in place, releases are built and signed only by this repository's GitHub workflow, and each
+release is approved by the maintainer ([Gorgho](https://github.com/ShyKaZa)).
 
 ## Feedback
 

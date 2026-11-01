@@ -1,10 +1,11 @@
 """Draws the Bleepline icon: a shield holding a sound wave with a censor bar across it.
 
     venv/Scripts/python make_icon.py  ->  assets/bleepline.ico (16-256 px) + assets/bleepline-*.png
+                                          + assets/installer-*.png (the setup wizard's images)
 """
 from pathlib import Path
 
-from PIL import Image, ImageChops, ImageDraw
+from PIL import Image, ImageChops, ImageDraw, ImageFont
 
 ROOT = Path(__file__).resolve().parent
 ASSETS = ROOT / "assets"
@@ -82,7 +83,23 @@ def main():
         preview.paste(images[n], (x, (256 - n) // 2), images[n])
         x += n + 16
     preview.save(ASSETS / "icon-preview.png")
-    print("wrote", ", ".join(p.name for p in sorted(ASSETS.iterdir())))
+    installer_images()
+    print("wrote", ", ".join(p.name for p in sorted(ASSETS.iterdir()) if p.is_file()))
+
+
+def installer_images():
+    """Inno Setup wizard images at 200% (it scales them down): small top-right logo, tall side panel."""
+    render(110).save(ASSETS / "installer-small.png")
+    w, h = 328, 628  # 2x the modern wizard's 164 x 314
+    side = Image.new("RGBA", (w, h), (28, 28, 28, 255))  # the dark theme's background
+    logo = render(176)
+    side.paste(logo, ((w - 176) // 2, 170), logo)
+    d = ImageDraw.Draw(side)
+    font = ImageFont.truetype(r"C:\Windows\Fonts\seguisb.ttf", 46)
+    d.text((w // 2, 400), "Bleepline", font=font, fill=(255, 255, 255, 255), anchor="mm")
+    small = ImageFont.truetype(r"C:\Windows\Fonts\segoeui.ttf", 22)
+    d.text((w // 2, 450), "real-time profanity filter", font=small, fill=(156, 163, 175, 255), anchor="mm")
+    side.save(ASSETS / "installer-side.png")
 
 
 if __name__ == "__main__":

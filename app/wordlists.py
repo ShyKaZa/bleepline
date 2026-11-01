@@ -1,8 +1,8 @@
 """
 Banned-word lists and matching. Standard library only.
 
-Sources: the built-in English list, "your words", imported files and downloaded
-language lists, minus an allow list. Entry syntax, one per line:
+Sources: the built-in English lists (in tiers), "your words", imported files and
+downloaded language lists, minus an allow list. Entry syntax, one per line:
     word        exact word (case and accents ignored)
     word*       anything starting with it: fuck* also catches fucker, fucking
     two words   a phrase, matched as consecutive words (up to 4)
@@ -13,8 +13,19 @@ import unicodedata
 import urllib.request
 from pathlib import Path
 
-from .paths import CUSTOM_WORDS_PATH, DATA_DIR
+from .config import DEFAULT_BUILTIN, write_atomic
+from .paths import ASSETS_DIR, CUSTOM_WORDS_PATH, DATA_DIR
 
+# Built-in lists: key -> (name, what's in it). Curated for voice: the old default, better_profanity's text-chat
+# list, also mutes everyday game talk ("kill", "sniper", "god", "stupid"), so it's now the opt-in "strict" list.
+BUILTIN_LISTS = {
+    "strong": ("Strong swearing", "fuck, shit, bitch, cunt, asshole..."),
+    "slurs": ("Slurs", "racist, homophobic, transphobic and ableist slurs"),
+    "sexual": ("Sexual words", "porn, blowjob, dildo..."),
+    "mild": ("Mild words", "hell, damn, crap, ass, wtf, oh my god..."),
+    "strict": ("Strict text-chat list", "better_profanity's list: also mutes kill, sniper, god, stupid, drunk..."),
+}
+BUILTIN_DIR = ASSETS_DIR / "wordlists"
 WORDLISTS_DIR = DATA_DIR / "wordlists"
 ALLOWED_PATH = DATA_DIR / "allowed_words.txt"
 MAX_PHRASE = 4
@@ -37,11 +48,14 @@ LANGUAGE_LISTS = {
 _CENSORED = re.compile(r"\w\*|\*\w")  # how Whisper sometimes writes swear words itself: f**k, **ck
 _LEET = str.maketrans({"$": "s", "@": "a", "!": "i", "+": "t", "0": "o", "1": "i", "3": "e", "4": "a",
                        "5": "s", "7": "t"})
+# English contraction endings: dropped before matching, so "he'll" isn't read as "hell" or "who're" as "whore"
+# (while "bitch's" still matches bitch). A trailing apostrophe ("fuckin'") is just punctuation.
+_CONTRACTION = re.compile(r"['’](ll|re|ve|d|s|t|m)\b")
 
 
 def normalize(word: str) -> str:
-    """Lower-case, strip surrounding punctuation and apostrophes; keep '*' (wildcards / censored words)."""
-    w = unicodedata.normalize("NFKC", word).casefold()
+    """Lower-case, drop contraction endings, strip punctuation; keep '*' (wildcards / censored words)."""
+    w = _CONTRACTION.sub("", unicodedata.normalize("NFKC", word).casefold())
     return "".join(ch for ch in w if ch.isalnum() or ch == "*")
 
 
@@ -148,10 +162,14 @@ def _read_text(path: Path) -> str:
     return raw.decode("utf-8", "replace")
 
 
-def builtin_words() -> list[str]:
-    import better_profanity
+def builtin_words(key: str) -> list[str]:
+    """Entries of one built-in list (see BUILTIN_LISTS)."""
+    if key == "strict":
+        import better_profanity
 
-    path = Path(better_profanity.__file__).parent / "profanity_wordlist.txt"
+        path = Path(better_profanity.__file__).parent / "profanity_wordlist.txt"
+    else:
+        path = BUILTIN_DIR / f"{key}.txt"
     return parse_lines(_read_text(path)) if path.exists() else []
 
 
@@ -164,7 +182,7 @@ def allowed_words() -> list[str]:
 
 
 def save_allowed(words: list[str]) -> None:
-    ALLOWED_PATH.write_text("\n".join(words), encoding="utf-8")
+    write_atomic(ALLOWED_PATH, "\n".join(words))
 
 
 def imported_lists() -> list[tuple[str, int]]:
@@ -211,8 +229,8 @@ def export_words(dest: Path, words: list[str]) -> None:
     Path(dest).write_text("\n".join(words) + "\n", encoding="utf-8")
 
 
-def sources(use_builtin: bool, disabled_lists, your_words) -> list[tuple[str, list[str]]]:
-    out = [("Built-in English list", builtin_words())] if use_builtin else []
+def sources(builtin_lists, disabled_lists, your_words) -> list[tuple[str, list[str]]]:
+    out = [(f"Built-in: {BUILTIN_LISTS[k][0]}", builtin_words(k)) for k in BUILTIN_LISTS if k in builtin_lists]
     out.append(("Your words", list(your_words)))
     for name, _ in imported_lists():
         if name not in disabled_lists:
@@ -220,13 +238,15 @@ def sources(use_builtin: bool, disabled_lists, your_words) -> list[tuple[str, li
     return out
 
 
-def build_matcher(use_builtin=True, disabled_lists=(), your_words=None, catch_censored=True) -> WordMatcher:
+def build_matcher(builtin_lists=DEFAULT_BUILTIN, disabled_lists=(), your_words=None,
+                  catch_censored=True) -> WordMatcher:
     your_words = custom_words() if your_words is None else your_words
-    words = [w for _, entries in sources(use_builtin, disabled_lists, your_words) for w in entries]
+    words = [w for _, entries in sources(builtin_lists, disabled_lists, your_words) for w in entries]
     return WordMatcher(words, allowed_words(), catch_censored)
 
 
-def explain(text: str, use_builtin=True, disabled_lists=(), your_words=None, catch_censored=True) -> str:
+def explain(text: str, builtin_lists=DEFAULT_BUILTIN, disabled_lists=(), your_words=None,
+            catch_censored=True) -> str:
     """Human answer for the 'test a word' box."""
     your_words = custom_words() if your_words is None else your_words
     allowed = allowed_words()
@@ -235,10 +255,15 @@ def explain(text: str, use_builtin=True, disabled_lists=(), your_words=None, cat
         return ""
     if WordMatcher([], allowed).allowed & {fold(normalize(w)).replace("*", "") for w in words}:
         return f"\"{text}\" is on your allow list, so it is never muted."
-    hits = [name for name, entries in sources(use_builtin, disabled_lists, your_words)
+    hits = [name for name, entries in sources(builtin_lists, disabled_lists, your_words)
             if WordMatcher(entries, allowed, catch_censored=False).find(words)]
     if hits:
         return f"\"{text}\" would be muted (found in: {', '.join(hits)})."
     if catch_censored and WordMatcher([], allowed, catch_censored=True).find(words):
         return f"\"{text}\" would be muted (looks like a word the speech model censored with *)."
+    off = [f"\"{BUILTIN_LISTS[k][0]}\"" for k in BUILTIN_LISTS
+           if k not in builtin_lists and WordMatcher(builtin_words(k), allowed, catch_censored=False).find(words)]
+    if off:
+        return (f"\"{text}\" is not muted now: it's in the built-in {' and '.join(off)}, "
+                f"which {'is' if len(off) == 1 else 'are'} switched off.")
     return f"\"{text}\" is not on any enabled list."

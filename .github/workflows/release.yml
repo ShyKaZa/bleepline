@@ -1,6 +1,9 @@
 # Builds Bleepline on GitHub's Windows servers and publishes the downloads.
 # Push a tag like v1.0.1 (matching app/version.py) to release; notes come from docs/release-notes/<tag>.md.
 # Run it by hand without a tag for a test build: the files are kept as a workflow artifact, nothing is published.
+#
+# Code signing (SignPath, see SIGNING.md) switches itself on once the repository variable
+# SIGNPATH_ORGANIZATION_ID and the secret SIGNPATH_API_TOKEN exist. Until then builds are unsigned.
 name: Release
 
 on:
@@ -15,6 +18,7 @@ on:
 
 permissions:
   contents: write
+  actions: read
 
 jobs:
   build:
@@ -22,28 +26,38 @@ jobs:
     env:
       TAG: ${{ github.event_name == 'push' && github.ref_name || inputs.tag }}
       GH_TOKEN: ${{ github.token }}
+      SIGN: ${{ vars.SIGNPATH_ORGANIZATION_ID != '' }}
     defaults:
       run:
         shell: bash
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
         with:
           ref: ${{ inputs.tag || github.ref }}  # empty input = the branch the run was started on
 
-      - uses: actions/setup-python@v6
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
           cache: pip
           cache-dependency-path: requirements-build.txt
 
       - name: Check the tag matches app/version.py
-        if: env.TAG != ''
+        id: version
         run: |
           version=$(python -c "import sys; sys.path.insert(0, '.'); from app.version import VERSION; print(VERSION)")
-          [ "v$version" = "$TAG" ] || { echo "::error::Tag $TAG but app/version.py says $version"; exit 1; }
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          if [ -n "$TAG" ] && [ "v$version" != "$TAG" ]; then
+            echo "::error::Tag $TAG but app/version.py says $version"; exit 1
+          fi
 
       - name: Install build dependencies
         run: python -m pip install -r requirements-build.txt
+
+      - name: Quick tests (word lists, delay buffer, storage)
+        run: |
+          python test_wordlists.py
+          python test_buffer.py
+          python test_maintenance.py
 
       - name: Get the OBS 30 headers
         run: |
@@ -53,8 +67,8 @@ jobs:
       - name: Build the OBS plugin
         run: python build_obs_plugin.py
 
-      - name: Build the app, installer and zips
-        run: python build.py
+      - name: Build the app
+        run: python build.py app
 
       - name: Self-test the built app with a real speech model
         run: |
@@ -68,8 +82,84 @@ jobs:
           fi
           grep -q "live CPU engine (short window): ok" "$log"
 
+      # --- Signing step 1: our own binaries (third-party DLLs are never signed with our certificate) ---
+      - name: Collect the files to sign
+        if: env.SIGN == 'true'
+        run: mkdir -p signing/app && cp dist/Bleepline/Bleepline.exe dist/Bleepline/obs-plugin/bleepline-filter.dll signing/app/
+
+      - name: Upload them for signing
+        id: unsigned-app
+        if: env.SIGN == 'true'
+        uses: actions/upload-artifact@v7
+        with:
+          name: unsigned-app
+          path: signing/app
+
+      - name: Sign Bleepline.exe and the OBS plugin
+        if: env.SIGN == 'true'
+        uses: signpath/github-action-submit-signing-request@v3
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: bleepline
+          signing-policy-slug: release-signing
+          artifact-configuration-slug: app
+          github-artifact-id: ${{ steps.unsigned-app.outputs.artifact-id }}
+          wait-for-completion: true
+          wait-for-completion-timeout-in-seconds: 3600  # each release needs a manual approval in SignPath
+          output-artifact-directory: signing/app-signed
+          parameters: |
+            version: ${{ toJSON(steps.version.outputs.version) }}
+
+      - name: Put the signed files back into the app
+        if: env.SIGN == 'true'
+        run: |
+          cp signing/app-signed/Bleepline.exe dist/Bleepline/
+          cp signing/app-signed/bleepline-filter.dll dist/Bleepline/obs-plugin/
+
+      - name: Build the installer and zips
+        run: python build.py package
+
+      # --- Signing step 2: the installer, built from the signed app ---
+      - name: Upload the installer for signing
+        id: unsigned-setup
+        if: env.SIGN == 'true'
+        uses: actions/upload-artifact@v7
+        with:
+          name: unsigned-setup
+          path: release/Bleepline-Setup.exe
+          archive: false
+
+      - name: Sign the installer
+        if: env.SIGN == 'true'
+        uses: signpath/github-action-submit-signing-request@v3
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: bleepline
+          signing-policy-slug: release-signing
+          artifact-configuration-slug: setup
+          github-artifact-id: ${{ steps.unsigned-setup.outputs.artifact-id }}
+          wait-for-completion: true
+          wait-for-completion-timeout-in-seconds: 3600
+          skip-decompress: true
+          output-artifact-directory: signing/setup-signed
+          parameters: |
+            version: ${{ toJSON(steps.version.outputs.version) }}
+
+      - name: Use the signed installer
+        if: env.SIGN == 'true'
+        run: cp signing/setup-signed/Bleepline-Setup.exe release/Bleepline-Setup.exe
+
+      - name: Test the installer (install, upgrade a running copy, upgrade from 1.1, uninstall)
+        shell: pwsh
+        run: |
+          ./installer/test_installer.ps1 release/Bleepline-Setup.exe
+          if ($LASTEXITCODE -ne 0) { throw "installer test failed" }
+          if (-not (Test-Path "$env:LOCALAPPDATA\Bleepline\models")) { throw "uninstalling must keep downloads" }
+
       - name: Keep the files as a workflow artifact too
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v7
         with:
           name: bleepline-${{ env.TAG || 'test-build' }}
           path: release/*

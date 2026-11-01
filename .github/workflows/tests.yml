@@ -1,0 +1,31 @@
+# Quick tests on every push and pull request (no models or audio hardware needed).
+name: Tests
+
+on:
+  push:
+    branches: ["**"]
+    tags-ignore: ["v*"]  # releases run these in the release workflow
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: bash  # stops at the first failing test (PowerShell would only check the last one)
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements-build.txt
+      - run: python -m pip install -r requirements-build.txt
+      - name: Word lists, delay buffer, storage
+        run: |
+          python test_wordlists.py
+          python test_buffer.py
+          python test_maintenance.py

@@ -1,4 +1,5 @@
 """Tkinter UI. Imports only the standard library at module load so Setup works on a fresh machine."""
+import ctypes
 import gc
 import math
 import os
@@ -31,6 +32,10 @@ THEMES = (("dark", "Dark"), ("light", "Light"), ("system", "Same as Windows"))
 CABLE_CAPTURE = "CABLE Output"
 CABLE_PLAYBACK = "CABLE Input"
 WRAP = 640
+SAFER_DELAY_MS = 800
+# From test_replay.py (12 clips, 24 swear words, tiny.en on the CPU); update when the engine changes.
+DELAY_RESULTS = ("600 ms fully mutes about 6 in 10 swear words and 85% of their sound, "
+                 "800 ms about 8 in 10 and 93%")
 
 MODE_LABELS = {
     "obs": "OBS Studio - filter inside OBS with the Bleepline plugin (no drivers)",
@@ -43,7 +48,8 @@ MODE_HELP = {
             "2. In OBS, right-click an audio source (Desktop Audio, your mic, a game or Discord "
             "capture) > Filters > + > Bleepline. Its delay is set in that filter.\n"
             "3. Add OBS's built-in Render Delay filter to your webcam and game capture with the same "
-            "delay so the video stays in sync.\n"
+            "delay so the video stays in sync. Render Delay goes up to 500 ms; for more, add a second one "
+            "(500 + 300 = 800 ms).\n"
             "4. Keep Bleepline running in this mode while you stream. You hear everything live; "
             "only the stream is cleaned."),
     "stream": ("1. Bleepline records everything playing on the device below (game, Discord, "
@@ -72,12 +78,52 @@ SOUND_TYPES = [("Audio files", "*.wav *.mp3 *.ogg *.flac *.m4a *.aac *.opus"), (
 SOUNDS_DIR = maintenance.SOUNDS_DIR
 
 
+class ScrollFrame(ttk.Frame):
+    """A tab whose content scrolls when the window is shorter than it (laptop screens). Build into .body."""
+
+    def __init__(self, parent):
+        super().__init__(parent)
+        self.canvas = tk.Canvas(self, highlightthickness=0, borderwidth=0)
+        self.bar = ttk.Scrollbar(self, orient="vertical", command=self.canvas.yview)
+        self.canvas.configure(yscrollcommand=self.bar.set)
+        self.canvas.pack(side="left", fill="both", expand=True)
+        self.body = ttk.Frame(self.canvas)
+        self._item = self.canvas.create_window(0, 0, window=self.body, anchor="nw")
+        self.body.bind("<Configure>", self._fit)
+        self.canvas.bind("<Configure>", self._fit)
+
+    def _fit(self, _event=None):
+        need, have = self.body.winfo_reqheight(), self.canvas.winfo_height()
+        # At least the visible height, so content that expands (the logs) still fills a tall window.
+        self.canvas.itemconfigure(self._item, width=self.canvas.winfo_width(), height=max(need, have))
+        self.canvas.configure(scrollregion=(0, 0, 0, max(need, have)))
+        if need > have + 1 and not self.bar.winfo_ismapped():
+            self.bar.pack(side="right", fill="y", before=self.canvas)
+        elif need <= have and self.bar.winfo_ismapped():
+            self.bar.pack_forget()
+            self.canvas.yview_moveto(0)
+
+    def scroll(self, units: int) -> None:
+        if self.bar.winfo_ismapped():
+            self.canvas.yview_scroll(units, "units")
+
+
+def _work_area() -> tuple[int, int, int, int]:
+    """(left, top, right, bottom) of the desktop without the taskbar, in pixels."""
+    rect = (ctypes.c_long * 4)()
+    if ctypes.windll.user32.SystemParametersInfoW(0x30, 0, rect, 0):  # SPI_GETWORKAREA
+        return tuple(rect)
+    return (0, 0, 1920, 1040)
+
+
 class BleeplineApp(tk.Tk):
     def __init__(self, startup: bool = False):
         super().__init__()
         self.title(f"{APP_NAME} {VERSION}")
-        self.geometry("820x980")
-        self.minsize(760, 820)
+        left, top, right, bottom = _work_area()
+        height = min(980, bottom - top - 50)  # 50: title bar and frame
+        self.geometry(f"820x{height}+{max(left, (left + right - 820) // 2)}+{top + 10}")
+        self.minsize(760, min(560, height))
 
         self.settings = Settings.load()
         self.palette = theme.apply(self, self.settings.theme)
@@ -87,7 +133,6 @@ class BleeplineApp(tk.Tk):
             self.iconbitmap(default=str(icon))  # also used by dialogs
         self.engine = None  # AudioEngine, or LinkServer in OBS mode
         self._live_models: dict = {}
-        self._file_models: dict = {}  # separate instances: a long file job must never stall live filtering
         self._events: queue.Queue = queue.Queue()
         self._starting = self._busy = self._cleaning = False
         self._wiped = False  # after "Remove everything", don't recreate settings.json on close
@@ -96,6 +141,7 @@ class BleeplineApp(tk.Tk):
         self._last_output: Path | None = None
         self._windows_problems: list[str] = []
         self._slow_checks = 0
+        self._live_device = "cpu"
         self._gpu_name = st.nvidia_gpu_name()
         self.inputs: list[str] = []
         self.outputs: list[str] = []
@@ -106,9 +152,10 @@ class BleeplineApp(tk.Tk):
         names = ("live", "clean", "words", "models", "options", "setup", "manage", "about")
         titles = ("Live filter", "Clean a recording", "Banned words", "Models", "Options", "Setup", "Manage", "About")
         for name, title in zip(names, titles):
-            tab = ttk.Frame(self.nb)
-            setattr(self, f"{name}_tab", tab)
+            tab = ScrollFrame(self.nb)
+            setattr(self, f"{name}_tab", tab.body)
             self.nb.add(tab, text=f" {title} ")
+        self.bind_all("<MouseWheel>", self._on_wheel)
         self._build_live_tab()
         self._build_clean_tab()
         self._build_words_tab()
@@ -124,10 +171,11 @@ class BleeplineApp(tk.Tk):
         self._refresh_setup_status()
         self._refresh_manage()
         self.after(100, self._poll)
+        self.after(3000, self._auto_check_updates)
         self.protocol("WM_DELETE_WINDOW", self._on_close)
 
         if st.missing_packages() or not st.installed_models():
-            self.nb.select(self.setup_tab)
+            self._select(self.setup_tab)
         elif self.settings.auto_start and self._readiness()[0]:
             self.after(300, self._start)
         if startup and self.settings.start_minimized:
@@ -149,11 +197,26 @@ class BleeplineApp(tk.Tk):
             side="left", padx=10, pady=(6, 0))
         self.pill = ttk.Label(bar, text="●  Stopped", style="Pill.TLabel", foreground=RED)
         self.pill.pack(side="right", padx=16)
+        self.update_link = ttk.Label(bar, text="", style="Update.TLabel", cursor="hand2")  # shown when there is one
         ttk.Separator(self).pack(fill="x")
 
     def _set_status(self, text: str, color: str) -> None:
         self.status_label.config(text=text, foreground=color)
         self.pill.config(text=f"●  {text}", foreground=color)
+
+    def _select(self, tab) -> None:
+        """Show the notebook tab whose content frame is `tab`."""
+        self.nb.select(tab.master.master)  # content frame -> canvas -> ScrollFrame
+
+    def _on_wheel(self, event):
+        """Mouse wheel scrolls the tab under the pointer, except over widgets that scroll themselves."""
+        widget = event.widget
+        if isinstance(widget, str) or isinstance(widget, (tk.Text, ttk.Treeview, ttk.Combobox)):
+            return  # str: a combobox's drop-down list
+        while widget is not None and not isinstance(widget, ScrollFrame):
+            widget = widget.master
+        if widget is not None:
+            widget.scroll(-1 if event.delta > 0 else 1)
 
     # =====================================================================
     # Live filter tab
@@ -245,6 +308,8 @@ class BleeplineApp(tk.Tk):
         self.delay_scale.pack(side="left", fill="x", expand=True, padx=6)
         self.delay_label = ttk.Label(row, width=8)
         self.delay_label.pack(side="left")
+        self.safer_btn = ttk.Button(row, text="Safer: 800 ms", command=lambda: self.delay_var.set(SAFER_DELAY_MS))
+        self.safer_btn.pack(side="left", padx=(4, 0))
         self.delay_var.trace_add("write", lambda *_: self._update_delay_label())
         self._update_delay_label()
         self.delay_hint = ttk.Label(tune, wraplength=WRAP, foreground=GREY, justify="left")
@@ -276,7 +341,7 @@ class BleeplineApp(tk.Tk):
         self.log_text = self._make_log(logf)
 
         self._locked_widgets = [*self._mode_buttons, self.desktop_combo, self.monitor_combo, self.input_combo,
-                                self.output_combo, self.delay_scale, self.live_model_combo]
+                                self.output_combo, self.delay_scale, self.safer_btn, self.live_model_combo]
         self._mode_changed()
 
     def _update_delay_label(self):
@@ -289,13 +354,16 @@ class BleeplineApp(tk.Tk):
         self.mode_help.config(text=MODE_HELP[mode])
         if mode == "obs":
             self.delay_scale.state(["disabled"])
-            self.delay_hint.config(text="In OBS mode the delay is set in each Bleepline filter inside OBS.")
+            self.safer_btn.state(["disabled"])
+            self.delay_hint.config(text=("In OBS mode the delay is set in each Bleepline filter inside OBS. 800 ms "
+                                         "there catches more than the default 500 ms (" + DELAY_RESULTS + ")."))
         else:
             if self.engine is None:
                 self.delay_scale.state(["!disabled"])
-            self.delay_hint.config(text=("Viewers hear audio this much later. It has to be longer than your longest "
-                                         "banned word plus ~150 ms; 500-600 ms works with a GPU. If the log says a "
-                                         "word was caught late, raise it."))
+                self.safer_btn.state(["!disabled"])
+            self.delay_hint.config(text=("Viewers hear audio this much later. Measured on test speech: "
+                                         + DELAY_RESULTS + "; what slips through is usually just the start of a "
+                                         "word. If the log says a word was caught late, raise it."))
         self._update_mode_status()
 
     def _load_devices(self):
@@ -436,9 +504,11 @@ class BleeplineApp(tk.Tk):
         def worker():
             try:
                 from .detector import load_model
-                from .file_cleaner import clean_file
+                from .file_cleaner import FILE_CPU_THREADS, clean_file
 
-                bundle = self._file_models.get(size) or self._file_models.setdefault(size, load_model(size))
+                # Loaded per job and dropped afterwards, so a big model doesn't keep holding GPU memory
+                # while you game. Separate from the live model: a long file job must never stall live filtering.
+                bundle = load_model(size, cpu_threads=FILE_CPU_THREADS)
                 dst, catches = clean_file(
                     src, model_size=size, mute_mode=s.mute_mode, pad_before_ms=s.mute_pad_before_ms,
                     pad_after_ms=s.mute_pad_after_ms, matcher=self._build_matcher(), min_prob=s.min_word_prob,
@@ -480,10 +550,18 @@ class BleeplineApp(tk.Tk):
         f = self.words_tab
         lists = ttk.LabelFrame(f, text="Word lists in use")
         lists.pack(fill="x", padx=10, pady=(12, 6))
-        self.builtin_var = tk.BooleanVar(value=self.settings.use_builtin_list)
-        ttk.Checkbutton(lists, variable=self.builtin_var,
-                        text=f"Built-in English list ({len(wordlists.builtin_words()) if not st.missing_packages() else 'about 900'} words)"
-                        ).pack(anchor="w", padx=8, pady=(6, 2))
+        builtin = ttk.Frame(lists)
+        builtin.pack(fill="x", padx=8, pady=(6, 4))
+        self._builtin_vars: dict = {}
+        for r, (key, (name, examples)) in enumerate(wordlists.BUILTIN_LISTS.items()):
+            var = tk.BooleanVar(value=key in self.settings.builtin_lists)
+            self._builtin_vars[key] = var
+            try:
+                count = f" ({len(wordlists.builtin_words(key))})"
+            except ImportError:  # the strict list comes from a package that isn't installed yet
+                count = ""
+            ttk.Checkbutton(builtin, variable=var, text=f"{name}{count}").grid(row=r, column=0, sticky="w")
+            ttk.Label(builtin, text=examples, foreground=GREY).grid(row=r, column=1, sticky="w", padx=(10, 0))
         self.lists_frame = ttk.Frame(lists)
         self.lists_frame.pack(fill="x", padx=8)
         self._list_vars: dict = {}
@@ -565,7 +643,7 @@ class BleeplineApp(tk.Tk):
         save_custom_words(self._your_words())
         wordlists.save_allowed(self._allowed())
         s = self.settings
-        return wordlists.build_matcher(s.use_builtin_list, s.disabled_lists, self._your_words(), s.catch_censored)
+        return wordlists.build_matcher(s.builtin_lists, s.disabled_lists, self._your_words(), s.catch_censored)
 
     def _import_list(self):
         path = filedialog.askopenfilename(title="Import a word list",
@@ -607,7 +685,7 @@ class BleeplineApp(tk.Tk):
         self._collect_settings()
         s = self.settings
         wordlists.save_allowed(self._allowed())
-        self.test_result.config(text=wordlists.explain(self.test_var.get().strip(), s.use_builtin_list,
+        self.test_result.config(text=wordlists.explain(self.test_var.get().strip(), s.builtin_lists,
                                                        s.disabled_lists, self._your_words(), s.catch_censored))
 
     def _save_words(self):
@@ -809,6 +887,12 @@ class BleeplineApp(tk.Tk):
         ttk.Checkbutton(start, text="...and start it minimized", variable=self.minimized_var).pack(anchor="w", padx=8)
         ttk.Label(start, foreground=GREY, text="Combine with \"Start filtering automatically\" (Live filter tab) "
                                                "for a set-and-forget setup.").pack(anchor="w", padx=8, pady=(0, 6))
+        self.updates_var = tk.BooleanVar(value=self._updates_enabled())
+        ttk.Checkbutton(start, text="Check GitHub for a new Bleepline version once a day", variable=self.updates_var,
+                        command=self._toggle_updates).pack(anchor="w", padx=8)
+        ttk.Label(start, foreground=GREY, wraplength=WRAP, justify="left",
+                  text="One small request to GitHub's public release list; nothing about you or what you hear is "
+                       "sent.").pack(anchor="w", padx=8, pady=(0, 6))
 
     def _change_theme(self):
         self.settings.theme = self.theme_var.get()
@@ -880,6 +964,63 @@ class BleeplineApp(tk.Tk):
         except Exception as exc:
             messagebox.showerror(APP_NAME, f"Could not play the preview:\n{exc}")
 
+    # -- update check ------------------------------------------------------
+
+    def _updates_enabled(self) -> bool:
+        if self.settings.check_updates is not None:
+            return self.settings.check_updates
+        from . import updates
+
+        return bool(updates.installer_choice())  # portable and source copies start with it off
+
+    def _toggle_updates(self):
+        self.settings.check_updates = self.updates_var.get()
+        self.settings.save()
+        self._auto_check_updates()
+
+    def _auto_check_updates(self):
+        from . import updates
+
+        s = self.settings
+        if s.update_available and updates.is_newer(s.update_available):
+            self._show_update(s.update_available, s.update_url)
+        if self._updates_enabled() and time.time() - s.update_checked_at > updates.CHECK_EVERY_SEC:
+            self._check_updates(manual=False)
+
+    def _check_updates(self, manual: bool = True):
+        from . import updates
+
+        if manual:
+            self.update_status.config(text="Checking...")
+
+        def worker():
+            try:
+                self._events.put(("update", (*updates.latest_release(), manual)))
+            except Exception as exc:
+                self._events.put(("update_failed", (str(exc), manual)))
+
+        threading.Thread(target=worker, daemon=True).start()
+
+    def _update_result(self, version: str, url: str, manual: bool):
+        from . import updates
+
+        s = self.settings
+        s.update_checked_at, s.update_available, s.update_url = time.time(), version, url
+        if not self._wiped:
+            s.save()
+        if updates.is_newer(version):
+            self._show_update(version, url)
+            self._log(f"{APP_NAME} {version} is available (you have {VERSION}): {url}")
+        elif manual:
+            self.update_status.config(text=f"You have the latest version ({VERSION}).")
+
+    def _show_update(self, version: str, url: str):
+        self.update_link.config(text=f"⬆  Update available: {version}")
+        self.update_link.bind("<Button-1>", lambda _e: webbrowser.open(url))
+        if not self.update_link.winfo_ismapped():
+            self.update_link.pack(side="right", padx=(0, 4))
+        self.update_status.config(text=f"Version {version} is available - click the link at the top to get it.")
+
     def _toggle_startup(self):
         if IS_FROZEN:
             exe, args = Path(sys.executable), "--startup"
@@ -926,7 +1067,7 @@ class BleeplineApp(tk.Tk):
                 w.grid_remove()
         self.gpu_status, self.gpu_btn = row(1, "GPU acceleration", "Install", self._install_gpu)
         self.models_status, models_btn = row(2, "Speech models", "Models tab",
-                                             lambda: self.nb.select(self.models_tab))
+                                             lambda: self._select(self.models_tab))
         self.obs_plugin_status, self.obs_plugin_btn = row(3, "OBS plugin", "Install", self._install_obs_plugin)
         self.cable_status, _ = row(4, "VB-CABLE", "Get VB-CABLE", st.open_cable_page)
         ttk.Button(grid, text="Re-check", command=self._recheck).grid(row=5, column=2, sticky="ne")
@@ -1119,6 +1260,11 @@ class BleeplineApp(tk.Tk):
         ttk.Button(links, text="License", command=lambda: self._open_doc("LICENSE")).pack(side="left", padx=(0, 8))
         ttk.Button(links, text="Third-party licenses",
                    command=lambda: self._open_doc("THIRD_PARTY_NOTICES.txt")).pack(side="left")
+        upd = ttk.Frame(f)
+        upd.pack(anchor="w", padx=16, pady=(0, 8))
+        ttk.Button(upd, text="Check for updates", command=self._check_updates).pack(side="left")
+        self.update_status = ttk.Label(upd, text="", foreground=GREY)
+        self.update_status.pack(side="left", padx=10)
 
         credits = ttk.LabelFrame(f, text="Built with")
         credits.pack(fill="x", padx=10, pady=6)
@@ -1126,7 +1272,7 @@ class BleeplineApp(tk.Tk):
                 ("OpenAI Whisper", "speech recognition models", "MIT"),
                 ("faster-whisper and CTranslate2", "fast Whisper engine (SYSTRAN)", "MIT"),
                 ("Silero VAD", "detects when someone is speaking", "MIT"),
-                ("better_profanity", "built-in English word list", "MIT"),
+                ("better_profanity", "the optional strict word list", "MIT"),
                 ("LDNOOBW", "word lists for other languages", "CC BY 4.0"),
                 ("sounddevice / PortAudio", "audio devices", "MIT"),
                 ("SoundCard", "desktop audio capture", "BSD-3-Clause"),
@@ -1136,7 +1282,9 @@ class BleeplineApp(tk.Tk):
                 ("Sun Valley ttk theme", "dark and light look", "MIT"),
                 ("OBS Studio", "the OBS plugin builds on libobs", "GPL-2.0"),
                 ("VB-CABLE by VB-Audio", "virtual cable for some modes (separate download)", "donationware"),
-                ("NVIDIA cuDNN / cuBLAS", "optional GPU acceleration", "NVIDIA license"),
+                ("Intel oneMKL and OpenMP", "fast math inside CTranslate2", "Intel Simplified Software License"),
+                ("oneDNN", "neural network maths inside CTranslate2", "Apache-2.0"),
+                ("NVIDIA cuBLAS", "optional GPU acceleration (downloaded on request)", "NVIDIA license"),
                 ("Python and Tcl/Tk", "runtime and window toolkit", "PSF / BSD-style"),
         )):
             ttk.Label(credits, text=name).grid(row=row, column=0, sticky="w", padx=(8, 16), pady=1)
@@ -1224,7 +1372,6 @@ class BleeplineApp(tk.Tk):
             messagebox.showinfo(APP_NAME, "Stop filtering and wait for any download or cleaning job to finish first.")
             return False
         self._live_models.clear()  # release model files so Windows lets us delete them
-        self._file_models.clear()
         gc.collect()
         return True
 
@@ -1267,9 +1414,9 @@ class BleeplineApp(tk.Tk):
     def _uninstall(self):
         if not messagebox.askyesno(APP_NAME, f"Uninstall {APP_NAME}? You'll choose what else to remove next."):
             return
-        self._wiped = True
-        subprocess.Popen([sys.executable, "--uninstall"])
-        self._on_close()
+        self._collect_settings()
+        if not winsetup.run_uninstaller():  # it closes this window itself
+            messagebox.showerror(APP_NAME, "The uninstaller wasn't found. Use Settings > Apps instead.")
 
     # =====================================================================
     # Live engine control
@@ -1304,7 +1451,7 @@ class BleeplineApp(tk.Tk):
         s.monitor_device = self.monitor_var.get() or s.monitor_device
         s.input_device = self.input_var.get() or s.input_device
         s.output_device = self.output_var.get() or s.output_device
-        s.use_builtin_list = self.builtin_var.get()
+        s.builtin_lists = [key for key, var in self._builtin_vars.items() if var.get()]
         s.disabled_lists = self._disabled_lists()
         s.catch_censored = self.censored_var.get()
         s.language = next((code for code, name in LANGUAGES if name == self.language_var.get()), "auto")
@@ -1343,7 +1490,7 @@ class BleeplineApp(tk.Tk):
         ready, reason = self._readiness()
         if not ready:
             self._log(reason)
-            self.nb.select(self.setup_tab)
+            self._select(self.setup_tab)
             return
         self._wiped = False
         self._collect_settings()
@@ -1416,6 +1563,7 @@ class BleeplineApp(tk.Tk):
         self._set_status("Filtering", GREEN)
         self.options_note.config(text="Filtering is running: option changes apply after you stop and start it.")
         _, device, note = bundle
+        self._live_device = device  # what it actually runs on (a GPU choice can fall back to the CPU)
         self.stats_label.config(text=f"{self.settings.live_model} on {device.upper()} - idle")
         for w in self._locked_widgets:
             w.state(["disabled"])
@@ -1479,7 +1627,7 @@ class BleeplineApp(tk.Tk):
                     db = 20 * math.log10(max(payload, 1e-6))
                     self.level_bar["value"] = max(0.0, min(100.0, (db + 60) * 100 / 60))  # -60..0 dBFS
                 elif kind == "stats" and self.engine is not None:
-                    self.stats_label.config(text=f"{self.settings.live_model} on {self.settings.asr_device.upper()} "
+                    self.stats_label.config(text=f"{self.settings.live_model} on {self._live_device.upper()} "
                                                  f"- {payload:.0f} ms per check")
                     self._maybe_warn_slow(payload)
                 elif kind == "log":
@@ -1513,6 +1661,12 @@ class BleeplineApp(tk.Tk):
                     self._clean_finished(*payload)
                 elif kind == "clean_failed":
                     self._clean_finished(error=payload)
+                elif kind == "update":
+                    self._update_result(*payload)
+                elif kind == "update_failed":
+                    error, manual = payload
+                    if manual:
+                        self.update_status.config(text=f"Couldn't reach GitHub ({error[:60]}).")
         except queue.Empty:
             pass
         if self.settings.mode == "obs" and self.engine is not None and time.time() - self._last_sources_at > 1:
@@ -1530,7 +1684,8 @@ class BleeplineApp(tk.Tk):
         self._slow_checks = self._slow_checks + 1 if safe > delay else 0
         if self._slow_checks == 10:
             where = "the delay in the Bleepline filter in OBS" if mode == "obs" else "the Delay slider"
-            self._log(f"Checks are taking {ms:.0f} ms (the GPU is busy, probably with a game). At {delay} ms delay "
+            busy = "the GPU" if self._live_device == "cuda" else "the CPU"
+            self._log(f"Checks are taking {ms:.0f} ms ({busy} is busy, probably with a game). At {delay} ms delay "
                       f"some words may get through: raise {where} to about {min(safe, 1500)} ms, use a smaller "
                       "model, or set a fixed language in Options.")
 

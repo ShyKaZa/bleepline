@@ -1,23 +1,17 @@
 """
-Per-user install plumbing, no admin needed: Start menu / desktop shortcuts and the
-"Apps & features" uninstall entry. Standard library only; shared by the setup exe
-and the app's uninstaller.
+Windows integration for the installed app: the "start with Windows" shortcut and finding the installer's
+uninstaller. Installing and uninstalling themselves are done by Inno Setup (installer/bleepline.iss).
+Standard library only.
 """
 import ctypes
-import os
 import subprocess
-import tempfile
 import winreg
 from pathlib import Path
 
-from .version import APP_NAME, AUTHOR, PROJECT_URL, SUPPORT_URL, VERSION
+from .version import APP_NAME
 
-UNINSTALL_KEY = r"Software\Microsoft\Windows\CurrentVersion\Uninstall\Bleepline"
+UNINSTALL_KEY = rf"Software\Microsoft\Windows\CurrentVersion\Uninstall\{APP_NAME}_is1"  # Inno Setup's entry
 NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)
-NEW_GROUP = getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
-DEFAULT_INSTALL_DIR = Path(os.environ.get("LOCALAPPDATA", Path.home())) / "Programs" / APP_NAME
-EXE_NAME = "Bleepline.exe"
-LEGACY_UNINSTALL_KEY = UNINSTALL_KEY.replace("Bleepline", "VoiceGuard")  # versions before 1.1
 
 
 def _known_folder(csidl: int) -> Path:
@@ -26,16 +20,8 @@ def _known_folder(csidl: int) -> Path:
     return Path(buf.value)
 
 
-def start_menu_shortcut() -> Path:
-    return _known_folder(0x02) / f"{APP_NAME}.lnk"  # CSIDL_PROGRAMS (per-user Start menu)
-
-
-def desktop_shortcut() -> Path:
-    return _known_folder(0x10) / f"{APP_NAME}.lnk"  # CSIDL_DESKTOPDIRECTORY
-
-
 def startup_shortcut() -> Path:
-    return _known_folder(0x07) / f"{APP_NAME}.lnk"  # CSIDL_STARTUP (per-user)
+    return _known_folder(0x07) / f"{APP_NAME}.lnk"  # CSIDL_STARTUP (per-user); the uninstaller removes it too
 
 
 def create_shortcut(link: Path, target: Path, arguments: str = "", workdir: Path | None = None) -> None:
@@ -49,11 +35,6 @@ def create_shortcut(link: Path, target: Path, arguments: str = "", workdir: Path
     subprocess.run(["powershell", "-NoProfile", "-Command", script], check=True, creationflags=NO_WINDOW)
 
 
-def remove_shortcuts() -> None:
-    for link in (start_menu_shortcut(), desktop_shortcut(), startup_shortcut()):
-        link.unlink(missing_ok=True)
-
-
 def set_start_with_windows(enabled: bool, exe: Path, arguments: str, workdir: Path) -> None:
     if enabled:
         create_shortcut(startup_shortcut(), exe, arguments, workdir)
@@ -61,65 +42,23 @@ def set_start_with_windows(enabled: bool, exe: Path, arguments: str, workdir: Pa
         startup_shortcut().unlink(missing_ok=True)
 
 
-def register(install_dir: Path, size_kb: int) -> None:
-    exe = install_dir / EXE_NAME
-    with winreg.CreateKey(winreg.HKEY_CURRENT_USER, UNINSTALL_KEY) as key:
-        for name, value in (
-            ("DisplayName", APP_NAME),
-            ("DisplayVersion", VERSION),
-            ("Publisher", AUTHOR),
-            ("InstallLocation", str(install_dir)),
-            ("DisplayIcon", f"{exe},0"),
-            ("UninstallString", f'"{exe}" --uninstall'),
-            ("QuietUninstallString", f'"{exe}" --uninstall --silent'),
-            *((("URLInfoAbout", PROJECT_URL),) if PROJECT_URL else ()),
-            *((("HelpLink", SUPPORT_URL),) if SUPPORT_URL else ()),
-        ):
-            winreg.SetValueEx(key, name, 0, winreg.REG_SZ, value)
-        for name, value in (("NoModify", 1), ("NoRepair", 1), ("EstimatedSize", size_kb)):
-            winreg.SetValueEx(key, name, 0, winreg.REG_DWORD, value)
-
-
-def unregister() -> None:
-    try:
-        winreg.DeleteKey(winreg.HKEY_CURRENT_USER, UNINSTALL_KEY)
-    except FileNotFoundError:
-        pass
-
-
-def installed_dir() -> Path | None:
+def _uninstall_value(name: str) -> str | None:
     try:
         with winreg.OpenKey(winreg.HKEY_CURRENT_USER, UNINSTALL_KEY) as key:
-            return Path(winreg.QueryValueEx(key, "InstallLocation")[0])
+            return winreg.QueryValueEx(key, name)[0]
     except OSError:
         return None
 
 
-def schedule_folder_delete(folder: Path) -> None:
-    """Delete `folder` once this process has exited (a running exe can't delete itself); retries ~20 s."""
-    f = str(folder)
-    # Passed as one string on purpose: Python's list quoting escapes quotes as \", which cmd.exe
-    # doesn't understand, so paths with spaces would break. No DETACHED_PROCESS: without a console
-    # the command silently does nothing.
-    command = (f'cmd /c for /l %i in (1,1,10) do (ping -n 3 127.0.0.1 >nul & rmdir /s /q "{f}" 2>nul & '
-               f'if not exist "{f}" exit)')
-    subprocess.Popen(command, cwd=tempfile.gettempdir(), creationflags=NO_WINDOW | NEW_GROUP)
+def installed_dir() -> Path | None:
+    location = _uninstall_value("InstallLocation")
+    return Path(location) if location else None
 
 
-def close_running_instances(exclude_pid: int | None = None) -> None:
-    """Ask any running Bleepline to close, so its files can be replaced or removed."""
-    skip = f" | Where-Object {{ $_.Id -ne {exclude_pid} }}" if exclude_pid else ""
-    script = (f"$p = Get-Process Bleepline -ErrorAction SilentlyContinue{skip};"
-              "$p | ForEach-Object { $_.CloseMainWindow() | Out-Null };"
-              "$p | ForEach-Object { if (-not $_.WaitForExit(5000)) { Stop-Process -Id $_.Id -Force } }")
-    subprocess.run(["powershell", "-NoProfile", "-Command", script], creationflags=NO_WINDOW)
-
-
-def remove_legacy_install() -> None:
-    """Uninstall Voice Guard 1.0 (this app's old name), keeping its downloads and settings for Bleepline."""
-    try:
-        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, LEGACY_UNINSTALL_KEY) as key:
-            command = winreg.QueryValueEx(key, "QuietUninstallString")[0]
-    except OSError:
-        return
-    subprocess.run(f"{command} --keep-data", creationflags=NO_WINDOW, timeout=120)
+def run_uninstaller() -> bool:
+    """Start the installer's uninstaller (it closes Bleepline itself). False if this copy wasn't installed."""
+    command = _uninstall_value("UninstallString")
+    if not command:
+        return False
+    subprocess.Popen(command)
+    return True

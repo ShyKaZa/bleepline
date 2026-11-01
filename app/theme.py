@@ -59,6 +59,8 @@ def _header_styles(palette: dict) -> dict:
         "HeaderMuted.TLabel": {"configure": {"background": bg, "foreground": palette["muted"]}},
         "Title.TLabel": {"configure": {"background": bg, "font": ("Segoe UI Semibold", 15)}},
         "Pill.TLabel": {"configure": {"background": bg, "font": ("Segoe UI Semibold", 10)}},
+        "Update.TLabel": {"configure": {"background": bg, "foreground": palette["accent"],
+                                        "font": ("Segoe UI Semibold", 10, "underline")}},
     }
 
 
@@ -85,6 +87,8 @@ def apply(root: tk.Tk, mode: str, previous: dict | None = None) -> dict:
         for child in widget.winfo_children():
             if isinstance(child, tk.Text):
                 style_text(child, palette)
+            elif isinstance(child, tk.Canvas):  # scrollable tab bodies
+                child.configure(background=palette["header"])
             elif isinstance(child, ttk.Label):
                 color = str(child.cget("foreground")).lower()
                 if color in swap:

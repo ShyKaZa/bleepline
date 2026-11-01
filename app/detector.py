@@ -51,8 +51,9 @@ def _warm_up(model):
 
 
 def load_model(model_size: str, device: str = "gpu", cpu_threads: int = 2):
-    """(model, device, note). device="cpu" runs on a few CPU threads and never touches the GPU;
-    device="gpu" tries CUDA first and falls back to the CPU with the reason in `note`."""
+    """(model, device, note). device="cpu" runs on `cpu_threads` CPU threads and never touches the GPU;
+    device="gpu" tries CUDA first and falls back to the CPU with the reason in `note`.
+    Two threads suit live filtering (it must stay light); a one-off file job can use more."""
     path = model_dir(model_size)
     source = str(path) if (path / "model.bin").exists() else model_size
     note = ""
@@ -181,7 +182,11 @@ class Detector:
                 if item is None:
                     return
                 mono, end_abs = item
-                chunks.append((mono, end_abs - len(mono)))
+                start = end_abs - len(mono)
+                if chunks and chunks[-1][1] + len(chunks[-1][0]) != start:
+                    chunks.clear()  # audio was dropped somewhere: a window across the gap would misplace mutes
+                    window_len = 0
+                chunks.append((mono, start))
                 window_len += len(mono)
                 since_run += len(mono)
             while window_len > win_max and len(chunks) > 1:

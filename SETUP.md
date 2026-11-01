@@ -8,8 +8,8 @@ your own CPU (or GPU); nothing leaves your PC.
 
 | File | What it is |
 |---|---|
-| `Bleepline-Setup.exe` (~119 MB) | Installer. Installs for your Windows user only (no admin), adds Start menu / desktop shortcuts and an entry in **Settings → Apps** with an uninstaller. Re-run a newer one to update; downloads and settings are kept. |
-| `Bleepline-portable-win64.zip` (~108 MB) | Same app, no install: unzip anywhere and run `Bleepline.exe`. |
+| `Bleepline-Setup.exe` (~70 MB) | Installer. Installs for your Windows user only (no admin), adds Start menu / desktop shortcuts and an entry in **Settings → Apps** with an uninstaller. Re-run a newer one to update: it closes Bleepline, updates it in place, and keeps your downloads and settings. |
+| `Bleepline-portable-win64.zip` (~100 MB) | Same app, no install: unzip anywhere and run `Bleepline.exe`. |
 | `Bleepline-OBS-plugin.zip` | Only the OBS filter, with manual install steps. The app can install it for you instead. |
 
 The builds aren't code-signed yet, so Windows SmartScreen may say "Windows protected your PC" the
@@ -24,8 +24,9 @@ first time: click **More info → Run anyway**.
 | OBS plugin | `C:\ProgramData\obs-studio\plugins\bleepline-filter` | Manage tab, or tick the box when uninstalling |
 | VB-CABLE (optional) | Windows driver from VB-Audio | Its own installer: run `VBCABLE_Setup_x64.exe` as administrator → **Remove Driver** |
 
-The **Manage** tab lists everything with its size. The uninstaller removes the app, its shortcuts and
-its Apps entry, and lets you choose whether to remove the downloads and the OBS plugin too.
+The **Manage** tab lists everything with its size. The uninstaller removes the app (only the files it
+installed), its shortcuts and its Apps entry, and asks whether to remove the downloads and the OBS plugin
+too. A silent uninstall keeps them.
 
 ## Pick a mode
 
@@ -48,7 +49,9 @@ clean only the copy that goes to viewers.
    Capture) → **Filters** → **+** → **Bleepline (profanity filter)**. Set the delay and
    silence/beep there (default 500 ms, silence).
 3. Add OBS's built-in **Render Delay** filter to your webcam and game capture with the same delay so
-   video stays in sync with the delayed audio.
+   video stays in sync with the delayed audio. Render Delay goes up to 500 ms; for a longer delay, add a
+   second Render Delay filter (500 + 300 = 800 ms). 800 ms catches noticeably more (see
+   [How reliable is it?](#how-reliable-is-it)).
 4. Keep Bleepline open in **OBS Studio** mode and press **Start filtering**. The Live tab shows
    which OBS sources are connected and every word that gets muted.
 
@@ -79,15 +82,23 @@ cleaned call into your headset, and OBS's Desktop Audio picks it up. Don't captu
 ## Customising
 
 ### Banned words tab
-- **Lists in use:** the built-in English list (916 words) plus any lists you import (`.txt` or
-  `.csv`, one word or phrase per line) or download per language (25 languages from the LDNOOBW
-  project, CC BY 4.0). Each list can be switched off or removed.
+- **Built-in English lists**, made for voice chat (in `assets/wordlists/`):
+  - **Strong swearing** (on): fuck, shit, bitch, cunt, asshole...
+  - **Slurs** (on): racist, homophobic, transphobic and ableist slurs.
+  - **Sexual words** (on): porn, blowjob, dildo...
+  - **Mild words** (off): hell, damn, crap, ass, wtf, oh my god... Turn it on for a family-friendly stream.
+  - **Strict text-chat list** (off): better_profanity's 916-word list, the default before 1.2. It also mutes
+    everyday game talk like kill, sniper, god, stupid or drunk.
+- **More lists:** import your own (`.txt` or `.csv`, one word or phrase per line) or download one per
+  language (25 languages from the LDNOOBW project, CC BY 4.0). Each list can be switched off or removed.
 - **Your words**, with simple syntax: `word` matches the exact word, `word*` anything starting with it
   (`fuck*` also catches fucker, fucking), and several words form a phrase. Case and accents are
   ignored (`kurva` = `Kurvá`). **Export to file** saves your list to share it.
 - **Allow list:** words that are never muted, even if a list contains them (e.g. hell, damn).
 - **Mute words written with \*:** the speech model sometimes writes swear words as `f**k` itself.
-- **Test a word or phrase:** tells you whether it would be muted, and which list it comes from.
+- **Test a word or phrase:** tells you whether it would be muted, which list it comes from, or which
+  switched-off built-in list has it.
+- Contractions are read as words ("he'll" is not "hell", "who're" is not "whore").
 
 ### Models tab
 Download any of these, or add your own:
@@ -123,7 +134,13 @@ folder**). It then shows up everywhere the built-in models do.
   Bleepline app's setting") and cleaned recordings.
 - **Appearance:** dark (default), light, or same as Windows; switches instantly.
 - **Startup:** start with Windows, optionally minimized. Combined with "Start filtering
-  automatically" it's set-and-forget.
+  automatically" it's set-and-forget. Opening Bleepline while it's already running brings the open
+  window to the front instead of starting a second copy.
+- **Updates:** check GitHub once a day for a new version (the installer asks; the portable version starts
+  with it off). A link appears at the top of the window when there is one. **About → Check for updates**
+  checks right away. It's one request to GitHub's public release list; nothing about you is sent.
+
+The **Delay** slider on the Live filter tab has a **Safer: 800 ms** button.
 
 ## Models and resource use
 
@@ -145,20 +162,40 @@ audio containing four swear words:
 The old approach (padding to 30 s) needed ~90% GPU with a game running, and on CPU it took 375 ms
 per check and caught nothing. The GPU option (Options → Live filtering runs on) is only worth it for
 bigger models. Cleaning recordings uses the GPU when one is available, because it's a one-off batch
-job.
+job; without one it uses half the CPU's threads. It decodes in batches (about twice as fast) and frees the
+model, and with it the GPU memory, as soon as the file is done.
 
 ## How reliable is it?
 
 A word can only be recognised once most of it has been spoken, so the delay has to be longer than
-your longest banned word plus the time to check it. Results from the tests in this folder, using
-synthesized speech with four swear words:
+your longest banned word plus the time to check it.
 
-- OBS plugin in real OBS 33, recorded by OBS, tiny.en: 4/4 fully muted in earlier runs (also with the
-  beep and with a custom sound sent from the app). The latest runs give **3/4** at 500 and 600 ms:
-  the speech model mishears the last word in OBS's copy of the audio. Being looked into.
-- Multilingual `tiny` on auto-detect, live at 600 ms: 4/4.
-- Desktop-audio mode on real Windows audio devices, tiny.en: **24/24 words fully muted** at 500 and 600 ms.
-- Same with base.en at 600 ms: 15/16 (base.en reacts too slowly live; use it for recordings).
+The broadest measurement is `test_replay.py`: 12 synthesized clips (6 phrases, 2 voices) with 24 swear
+words and look-alikes such as "shift", "class" and "cocktail". It replays the live detector with its real
+timing, and a word only counts as muted where the mute arrived before that audio was played. With the
+default tiny.en on the CPU:
+
+| Delay | Fully muted (≥95% of the word) | Swear-word audio muted |
+|---|---|---|
+| 400 ms | 8 of 24 | 68% |
+| 500 ms | 12 of 24 | 78% |
+| 600 ms (default) | 14 of 24 | 84% |
+| 800 ms | 19 of 24 | 93% |
+| 1000 ms | 20 of 24 | 94% |
+
+Below 800 ms, what slips through is mostly the start of a word; the few words still missed at 1000 ms were
+misheard by the speech model. base.en fully mutes a few more words at 600 ms (17 of 24) but less of their
+audio overall (83%) at twice the CPU, so tiny.en stays the live default. Words right after a swear word can
+be cut too ("Fuck, I am dead" loses "I am"), because a word still being spoken at the edge of a check is
+muted eagerly: a wrong mute is cheap, a leak is not.
+
+Other tests in this folder, with one phrase holding four swear words:
+
+- OBS plugin in real OBS 33, recorded by OBS, tiny.en: **3/4** at 500 and 600 ms (also with the beep and
+  with a custom sound sent from the app). The speech model mishears "shit" in "shit happens" in OBS's copy
+  of the audio; the same phrase fed through the Python stand-in for the plugin (`test_link.py`) gets 4/4.
+- Live engine with real-time pacing (`integration_test.py`), tiny.en at 600 ms: 4/4.
+- Desktop-audio mode on real Windows audio devices, tiny.en: 24/24 words fully muted at 500 and 600 ms.
 - Recording cleaner, base.en: 4/4 muted, video untouched, clean speech kept at 100%.
 
 Every live catch is logged. If one says **caught late**, the start of the word may have been heard;
@@ -176,24 +213,28 @@ venv/Scripts/python main.py
 From source, data lives in this folder; the packaged app keeps it in `%LOCALAPPDATA%\Bleepline`.
 
 ```bash
+winget install JRSoftware.InnoSetup
 venv/Scripts/pip install -r requirements-build.txt
 venv/Scripts/python build_obs_plugin.py
 venv/Scripts/python build.py
 ```
 
-`requirements-build.txt` pins the exact versions release builds use.
+This writes the three downloads above to `release/`. `build.py app` builds only the app (`dist/Bleepline`)
+and `build.py package` only the installer and zips from it; the release workflow signs the app's files in
+between. The installer is made with [Inno Setup](https://jrsoftware.org/isinfo.php) from
+`installer/bleepline.iss`. `requirements-build.txt` pins the exact versions release builds use. Models, the
+GPU runtime and VB-CABLE are downloaded from the Setup tab on first run.
 
 **Releases are built by GitHub**, not on a PC: bump `VERSION` in `app/version.py`, add
 `docs/release-notes/v<version>.md`, commit, then push a matching tag (`git tag v1.0.1` and
-`git push origin v1.0.1`). The [Release workflow](.github/workflows/release.yml) builds everything on a
-Windows runner and publishes the release with the three downloads.
-
-This writes the three downloads above to `release/`. Models, the GPU runtime and VB-CABLE are
-downloaded from the Setup tab on first run.
+`git push origin v1.0.1`). The [Release workflow](.github/workflows/release.yml) runs the quick tests,
+builds everything on a Windows runner, self-tests the app, tests the installer (install, upgrading a
+running copy, upgrading from 1.1, uninstall) and publishes the release with the three downloads. Code
+signing switches on once SignPath is set up: see [SIGNING.md](SIGNING.md).
 
 Command-line switches: `Bleepline.exe --selftest` checks an install and writes `selftest.log` to the
-data folder; `Bleepline.exe --uninstall [--silent] [--keep-data]` is the uninstaller;
-`Bleepline-Setup.exe --silent [--dir PATH] [--desktop] [--launch]` installs without a window.
+data folder. `Bleepline-Setup.exe /VERYSILENT [/DIR="path"] [/TASKS="desktopicon,checkupdates"]` installs
+without a window; `unins000.exe /VERYSILENT` in the install folder uninstalls without one (keeping downloads).
 
 ### Building the OBS plugin
 
@@ -221,9 +262,11 @@ headers. Run `build_obs_plugin.py` before `build.py` so the exe ships the plugin
 | `python test_link.py [delay] [model]` | OBS link protocol, with a Python stand-in for the plugin |
 | `python test_file_cleaner.py [model]` | builds a test video, cleans it, verifies video untouched and words muted |
 | `python test_maintenance.py` | storage report and removal (models, GPU runtime, OBS plugin, everything) on a temp folder |
-| `python test_wordlists.py` | matching rules, built-in list, file import (incl. old Windows-1250 files), language download, allow list |
+| `python test_wordlists.py` | matching rules, built-in lists (swears caught, everyday words and contractions left alone), file import (incl. old Windows-1250 files), language download, allow list |
 | `python test_censor_sound.py [model]` | censor sound restart/loop logic, custom sound file in a cleaned recording |
-| `python test_obs_plugin.py [delay] [model] [silence\|beep\|app]` | the real plugin inside portable OBS (`tools/obs-33`), driven over obs-websocket, checked in OBS's own recording |
+| `python test_replay.py [model] [delays...]` | how much of 24 swear words in 12 clips the live detector mutes at each delay, with its real timing |
+| `python test_obs_plugin.py [delay] [model] [silence\|beep\|app] [early] [trim]` | the real plugin inside portable OBS (`tools/obs-33`), driven over obs-websocket, checked in OBS's own recording; `trim` ends the clip right after its last word |
+| `powershell -File installer\test_installer.ps1` | the installer: fresh install, upgrade with the app running, upgrade from 1.1, uninstall. It really installs, so the release workflow runs it on GitHub's machine; use a virtual machine locally |
 
 `test_obs_plugin.py` launches the portable OBS in `tools/obs-33` (your installed OBS, if any, isn't
 touched). OBS writes a shader cache to `C:\ProgramData\obs-studio\shader-cache` even in portable mode.
@@ -235,6 +278,11 @@ touched). OBS writes a shader cache to `C:\ProgramData\obs-studio\shader-cache` 
   and quality; add your own words for slang.
 - Mumbled, very fast or accented speech, and voices buried under loud game audio, can slip through.
 - Streamlabs Desktop mostly doesn't run OBS plugins, so Streamlabs users need the VB-CABLE mode.
+- OBS sources that play a clip and then go quiet (alerts, TTS donations, media files): the last part of
+  each clip, as long as the delay, stays in the Bleepline filter until the source plays again, and then
+  comes out just before the next clip. OBS only hands audio to a filter while its source is playing, so a
+  filter can't push it out on time (`test_obs_plugin.py ... trim` shows it). Sources that always play,
+  like Desktop Audio, a microphone or a game, aren't affected.
 - VB-CABLE is a driver, so it needs administrator rights and a reboot.
 
 ## About VB-CABLE

@@ -15,6 +15,7 @@ import subprocess
 import sys
 import tempfile
 import time
+import wave
 from pathlib import Path
 
 import av
@@ -81,6 +82,18 @@ def read_audio(path: Path) -> np.ndarray:
         return np.concatenate([o.to_ndarray().reshape(-1) for f in inp.decode(audio=0) for o in rs.resample(f)])
 
 
+def trimmed_copy(wav: Path, model) -> Path:
+    segs, _ = model.transcribe(it.load_wav(wav, 16000), language="en", word_timestamps=True)
+    end = [w for s in segs for w in s.words][-1].end + 0.05
+    with wave.open(str(wav), "rb") as src:
+        params, frames = src.getparams(), src.readframes(int(end * src.getframerate()))
+    out = wav.with_name("bleepline_test_phrase_trimmed.wav")
+    with wave.open(str(out), "wb") as dst:
+        dst.setparams(params)
+        dst.writeframes(frames)
+    return out
+
+
 def main():
     delay_ms = int(sys.argv[1]) if len(sys.argv) > 1 else 500
     model_size = sys.argv[2] if len(sys.argv) > 2 else "tiny.en"
@@ -88,10 +101,12 @@ def main():
     wav = Path(tempfile.gettempdir()) / "bleepline_test_phrase.wav"
     if not wav.exists():
         it.synthesize(wav)
+    model, device, _ = load_model(model_size)
+    if "trim" in sys.argv:  # end the clip right after its last word, like a sound alert that just stops
+        wav = trimmed_copy(wav, model)
     speech = it.load_wav(wav, RATE)
 
     prepare_portable_obs()
-    model, device, _ = load_model(model_size)
     events, catches = [], []
     censor = ("silence", 1000.0, 0.4, None)
     expected_hz = 1000
@@ -102,7 +117,7 @@ def main():
         censor_sound.SOUNDS_DIR = Path(tempfile.mkdtemp())
         tone_wav(censor_sound.SOUNDS_DIR / "test tone.wav", 600, 0.3)
         censor, expected_hz = ("sound", 1000.0, 0.8, "test tone.wav"), 600
-    early = len(sys.argv) > 4 and sys.argv[4] == "early"
+    early = "early" in sys.argv[4:]
     from app import link_server
 
     sent = {"early": 0, "undo": 0}
@@ -170,7 +185,8 @@ def main():
     segs, _ = model.transcribe(it.load_wav(wav, 16000), language="en", word_timestamps=True)
     ok = total = 0
     print(f"recording {rec.name}: speech found {offset / RATE:.2f}s in; catches {catches}")
-    for w in (w for s in segs for w in s.words):
+    words = [w for s in segs for w in s.words]
+    for w in words:
         word = it.clean(w.word)
         if not profanity.contains_profanity(word):
             continue
@@ -186,6 +202,12 @@ def main():
             muted = 1 - np.abs(region).mean() / np.abs(speech[a:b]).mean()
             ok += muted > 0.95
             print(f"  {word:10s} {w.start:5.2f}s muted {muted * 100:5.1f}%")
+    # The clip's last word: OBS stops calling filters once a media source has nothing more to play, so audio
+    # still inside the filter's delay line at that moment may never come out.
+    last = words[-1]
+    a, b = int(last.start * RATE), int(last.end * RATE)
+    tail = np.abs(out[offset + a:offset + b]).mean() / np.abs(speech[a:b]).mean()
+    print(f"last word {it.clean(last.word)!r} level in the recording: {tail * 100:.0f}%")
     intact = np.abs(out[offset:offset + int(1.5 * RATE)]).mean() / np.abs(speech[: int(1.5 * RATE)]).mean()
     verdict = {"beep": "replaced by the 1 kHz beep", "app": "replaced by the app's 600 Hz custom sound"}.get(
         mode, "fully muted")

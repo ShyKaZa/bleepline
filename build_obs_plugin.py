@@ -53,6 +53,26 @@ def zig(*args):
     subprocess.run([sys.executable, "-m", "ziglang", *map(str, args)], check=True)
 
 
+def version_resource() -> Path:
+    """Windows file properties for the DLL (product name and version; code signing requires them)."""
+    sys.path.insert(0, str(ROOT))
+    from app.version import AUTHOR, VERSION
+
+    nums = ",".join((VERSION.split(".") + ["0"] * 4)[:4])
+    strings = {"CompanyName": AUTHOR, "FileDescription": "Bleepline OBS filter", "FileVersion": VERSION,
+               "InternalName": "bleepline-filter", "LegalCopyright": f"Copyright (c) 2026 {AUTHOR}, GPL-2.0-or-later",
+               "OriginalFilename": OUT.name, "ProductName": "Bleepline", "ProductVersion": VERSION}
+    rc = BUILD / "bleepline-filter.rc"
+    rc.write_text(
+        f"1 VERSIONINFO\nFILEVERSION {nums}\nPRODUCTVERSION {nums}\nFILEFLAGSMASK 0x3f\nFILEFLAGS 0\n"
+        "FILEOS 0x40004\nFILETYPE 0x2\nFILESUBTYPE 0\nBEGIN\n  BLOCK \"StringFileInfo\"\n  BEGIN\n"
+        "    BLOCK \"040904B0\"\n    BEGIN\n"
+        + "".join(f'      VALUE "{k}", "{v}"\n' for k, v in strings.items())
+        + "    END\n  END\n  BLOCK \"VarFileInfo\"\n  BEGIN\n    VALUE \"Translation\", 0x409, 1200\n  END\nEND\n",
+        encoding="utf-8")
+    return rc
+
+
 def main():
     BUILD.mkdir(parents=True, exist_ok=True)
     OUT.parent.mkdir(parents=True, exist_ok=True)
@@ -64,7 +84,7 @@ def main():
     zig("dlltool", "-m", "i386:x86-64", "-d", SAVED_DEF, "-l", BUILD / "libobs.dll.a")
     zig("cc", "-target", "x86_64-windows-gnu", "-shared", "-O2", "-Wall",
         f"-I{ROOT / 'obs-plugin-src' / 'include'}", f"-I{HEADERS}",
-        SOURCE, BUILD / "libobs.dll.a", "-lws2_32", "-o", OUT)
+        SOURCE, version_resource(), BUILD / "libobs.dll.a", "-lws2_32", "-o", OUT)
     print(f"Built {OUT} ({OUT.stat().st_size // 1024} KB) against {len(names)} obs.dll exports")
 
 

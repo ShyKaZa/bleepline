@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- SignPath artifact configuration "app": Bleepline's own binaries, uploaded by the release workflow as a zip.
+     Third-party DLLs are never signed with the project's certificate. Paste into SignPath (see SIGNING.md). -->
+<artifact-configuration xmlns="http://signpath.io/artifact-configuration/v1">
+  <parameters>
+    <parameter name="version" required="true" />
+  </parameters>
+  <zip-file>
+    <pe-file path="Bleepline.exe" product-name="Bleepline" product-version="${version}">
+      <authenticode-sign />
+    </pe-file>
+    <pe-file path="bleepline-filter.dll" product-name="Bleepline" product-version="${version}">
+      <authenticode-sign />
+    </pe-file>
+  </zip-file>
+</artifact-configuration>

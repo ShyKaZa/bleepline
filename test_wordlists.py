@@ -25,14 +25,26 @@ def test_matching_rules():
     print("PASS matching: case/accents, wildcard, accented wildcard, allow list, censored, phrases")
 
 
-def test_builtin_list():
-    m = WordMatcher(wl.builtin_words())
-    assert all(m.match_word(w) for w in ("fuck", "shit", "bitch", "bullshit"))
-    # ("sob" is on the built-in list on purpose, as an abbreviation; the allow list covers other uses)
-    harmless = ("duck", "hello", "class", "assume", "shot", "a", "sh", "shi", "sht", "i", "he")
+def test_builtin_lists():
+    m = WordMatcher([w for k in wl.DEFAULT_BUILTIN for w in wl.builtin_words(k)])
+    swears = ("fuck", "Fucking,", "motherfucker", "shit", "bullshit", "bitches", "asshole", "cunt", "dick", "porn",
+              "blowjob", "faggot", "retarded", "bitch's", "fuckin'")
+    assert not [w for w in swears if not m.match_word(w)], [w for w in swears if not m.match_word(w)]
+    assert (1, 3, "blow job") in m.find("a blow job".split())
+    # everyday game and stream talk that the old default (better_profanity's text-chat list) muted
+    harmless = ("duck", "hello", "class", "assume", "assassin", "shot", "a", "sh", "shi", "sht", "i", "he", "kill",
+                "sniper", "god", "stupid", "drunk", "weed", "fat", "ugly", "gay", "lesbian", "murder", "pawn",
+                "strip", "Dickens", "cocktail", "cockpit", "analysis", "cumulative", "shell", "he'll", "who're",
+                "we'll", "she'd", "hell", "damn", "ass")
     assert not [w for w in harmless if m.match_word(w)], [w for w in harmless if m.match_word(w)]
+    mild = WordMatcher(wl.builtin_words("mild"))
+    assert all(mild.match_word(w) for w in ("hell", "Damn!", "crap", "ass")) and not mild.match_word("he'll")
+    assert (0, 3, "oh my god") in mild.find("oh my god".split())
+    strict = WordMatcher(wl.builtin_words("strict"))
+    assert strict.match_word("kill") and len(wl.builtin_words("strict")) > 800  # the old list, still available
     assert WordMatcher(["sh!+"]).match_word("shit") and not WordMatcher(["s.o.b."]).match_word("sob")
-    print(f"PASS built-in list ({len(wl.builtin_words())} entries)")
+    sizes = {k: len(wl.builtin_words(k)) for k in wl.BUILTIN_LISTS}
+    print(f"PASS built-in lists {sizes}: swears caught, everyday words and contractions left alone")
 
 
 def test_storage_import_download_explain():
@@ -56,6 +68,9 @@ def test_storage_import_download_explain():
         assert "moje slova" in wl.explain("sakra")
         assert "allow list" in wl.explain("hell")
         assert "not on any" in wl.explain("pizza")
+        assert "switched off" in wl.explain("crap") and "Mild words" in wl.explain("crap")
+        assert "Mild words" in wl.explain("crap", builtin_lists=["mild"]) and "would be muted" in wl.explain(
+            "crap", builtin_lists=["mild"])
         m2 = wl.build_matcher(disabled_lists=[name])
         assert m2.match_word("sakra") is None
         wl.remove_list(name)
@@ -65,5 +80,5 @@ def test_storage_import_download_explain():
 
 if __name__ == "__main__":
     test_matching_rules()
-    test_builtin_list()
+    test_builtin_lists()
     test_storage_import_download_explain()

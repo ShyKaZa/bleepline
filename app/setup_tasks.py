@@ -1,12 +1,15 @@
 """First-run setup steps. Standard library only, so this works before any packages are installed."""
 import fnmatch
 import hashlib
+import http.client
 import importlib.util
 import json
 import os
 import shutil
 import subprocess
 import sys
+import time
+import urllib.error
 import urllib.request
 import webbrowser
 import zipfile
@@ -15,7 +18,8 @@ from pathlib import Path
 from .paths import APP_DIR, CUDA_DIR, IS_FROZEN, MODELS_DIR, REQUIREMENTS_PATH, cuda_dll_dirs, model_dir
 
 NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)
-HEADERS = {"User-Agent": "Bleepline/1.0"}
+HEADERS = {"User-Agent": "Bleepline"}
+RETRY_PAUSES = (5, 10, 20, 30, 60, 60, 60, 60)  # seconds; rides out ~5 minutes of dropped connection
 
 REQUIRED_MODULES = ("numpy", "sounddevice", "faster_whisper", "better_profanity")
 
@@ -89,7 +93,7 @@ def install_gpu_runtime(progress, log) -> None:
     log(f"Downloading NVIDIA cuBLAS ({wheel['size'] // 1_000_000} MB) from PyPI...")
     CUDA_DIR.mkdir(parents=True, exist_ok=True)
     archive = CUDA_DIR / "cublas.whl"
-    _download(wheel["url"], archive, progress, wheel["digests"]["sha256"])
+    _download(wheel["url"], archive, progress, wheel["digests"]["sha256"], log=log)
     log("Extracting DLLs...")
     with zipfile.ZipFile(archive) as z:
         for member in z.namelist():
@@ -163,21 +167,23 @@ def add_model_folder(src: Path, progress, log) -> str:
 def download_model(name: str, progress, log) -> None:
     repo = MODEL_CATALOG[name][0]
     info = _get_json(f"https://huggingface.co/api/models/{repo}?blobs=true")
-    files = [
-        (s["rfilename"], s.get("size") or 0)
-        for s in info["siblings"]
-        if any(fnmatch.fnmatch(s["rfilename"], p) for p in MODEL_FILES)
-    ]
-    total = sum(size_ for _, size_ in files)
+    files = [s for s in info["siblings"] if any(fnmatch.fnmatch(s["rfilename"], p) for p in MODEL_FILES)]
+    total = sum(s.get("size") or 0 for s in files)
     target = model_dir(name)
     target.mkdir(parents=True, exist_ok=True)
     done = 0
-    for file_name, size_ in sorted(files, key=lambda f: f[0] == "model.bin"):
+    for s in sorted(files, key=lambda f: f["rfilename"] == "model.bin"):
+        file_name, size_ = s["rfilename"], s.get("size") or 0
         log(f"Downloading {file_name} ({max(1, size_ // 1_000_000)} MB)...")
+        # Pinned to the revision the file list came from, and checked against the checksums Hugging Face
+        # publishes (SHA-256 for large files, the git blob hash for small ones).
         _download(
-            f"https://huggingface.co/{repo}/resolve/main/{file_name}",
+            f"https://huggingface.co/{repo}/resolve/{info['sha']}/{file_name}",
             target / file_name,
             lambda d, _t, base=done: progress(base + d, total),
+            sha256=(s.get("lfs") or {}).get("sha256"),
+            git_sha1=None if s.get("lfs") else s.get("blobId"),
+            log=log,
         )
         done += size_
     log(f"Model {name} installed.")
@@ -248,26 +254,74 @@ def install_obs_plugin(log) -> None:
 
 def restart_app() -> None:
     args = [sys.executable] if IS_FROZEN else [sys.executable, *sys.argv]
-    subprocess.Popen(args, creationflags=NO_WINDOW)
+    subprocess.Popen([*args, "--restarted"], creationflags=NO_WINDOW)
+
+
+def _retrying(what: str, attempt, log=None):
+    """Run attempt() again after network hiccups (slow or flaky connections), with growing pauses."""
+    for n, pause in enumerate(RETRY_PAUSES + (None,)):
+        try:
+            return attempt()
+        except urllib.error.HTTPError as exc:
+            if exc.code not in (408, 429, 500, 502, 503, 504) or pause is None:
+                raise
+            error = exc
+        except (urllib.error.URLError, OSError, http.client.HTTPException) as exc:
+            if pause is None:
+                raise
+            error = exc
+        if log:
+            log(f"{what}: connection problem ({error}), retrying in {pause} s ({n + 1}/{len(RETRY_PAUSES)})...")
+        time.sleep(pause)
 
 
 def _get_json(url: str):
-    with urllib.request.urlopen(urllib.request.Request(url, headers=HEADERS), timeout=30) as resp:
-        return json.load(resp)
+    def attempt():
+        with urllib.request.urlopen(urllib.request.Request(url, headers=HEADERS), timeout=30) as resp:
+            return json.load(resp)
+
+    return _retrying(url, attempt)
 
 
-def _download(url: str, dest: Path, progress, sha256: str | None = None) -> None:
+def _download(url: str, dest: Path, progress, sha256: str | None = None, git_sha1: str | None = None,
+              log=None) -> None:
+    """Download to dest. An interrupted download continues where it stopped (also in a later session),
+    and the result is verified when a checksum is given."""
     part = dest.with_name(dest.name + ".part")
-    digest = hashlib.sha256()
-    with urllib.request.urlopen(urllib.request.Request(url, headers=HEADERS), timeout=60) as resp, open(part, "wb") as f:
-        total = int(resp.headers.get("Content-Length") or 0)
-        done = 0
-        while chunk := resp.read(1 << 20):
-            f.write(chunk)
-            digest.update(chunk)
-            done += len(chunk)
-            progress(done, total)
-    if sha256 and digest.hexdigest() != sha256:
+
+    def attempt():
+        have = part.stat().st_size if part.exists() else 0
+        headers = {**HEADERS, **({"Range": f"bytes={have}-"} if have else {})}
+        try:
+            resp = urllib.request.urlopen(urllib.request.Request(url, headers=headers), timeout=60)
+        except urllib.error.HTTPError as exc:
+            if exc.code == 416 and have:  # nothing left to fetch: the part file is already complete
+                return
+            raise
+        with resp, open(part, "ab" if resp.status == 206 else "wb") as f:
+            done = have if resp.status == 206 else 0
+            total = done + int(resp.headers.get("Content-Length") or 0)
+            while chunk := resp.read(1 << 20):
+                f.write(chunk)
+                done += len(chunk)
+                progress(done, total)
+
+    _retrying(dest.name, attempt, log)
+    if not _checksum_ok(part, sha256, git_sha1):
         part.unlink()
-        raise RuntimeError(f"checksum mismatch for {dest.name}")
+        raise RuntimeError(f"{dest.name} was damaged in transit (checksum mismatch); please try again")
     part.replace(dest)
+
+
+def _checksum_ok(path: Path, sha256: str | None, git_sha1: str | None) -> bool:
+    if sha256:
+        digest = hashlib.sha256()
+    elif git_sha1:
+        digest = hashlib.sha1()
+        digest.update(f"blob {path.stat().st_size}\0".encode())
+    else:
+        return True
+    with open(path, "rb") as f:
+        while chunk := f.read(1 << 20):
+            digest.update(chunk)
+    return digest.hexdigest() == (sha256 or git_sha1)

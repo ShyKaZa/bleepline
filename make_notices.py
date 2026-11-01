@@ -3,7 +3,7 @@
     venv/Scripts/python make_notices.py   (build.py runs it after PyInstaller)
 
 Python packages are found by looking at what PyInstaller actually put in dist/Bleepline/_internal;
-components that aren't Python packages (FFmpeg, cuDNN, speech models, ...) are listed in EXTRAS.
+components that aren't Python packages (FFmpeg, Intel oneMKL, speech models, ...) are listed in EXTRAS.
 License texts that a package doesn't ship itself live in notices/.
 """
 import re
@@ -45,11 +45,15 @@ EXTRAS = [
      "libvpl (MIT), zlib (Zlib), libiconv (LGPL-2.1-or-later), MinGW-w64 winpthreads (MIT), GCC runtime "
      "libgcc/libstdc++ (GPL-3.0 with the GCC Runtime Library Exception)", "https://github.com/PyAV-Org/pyav-ffmpeg",
      None),
-    ("NVIDIA cuDNN (cudnn64_9.dll, inside CTranslate2) and cuBLAS (downloaded from inside the app for GPU use)",
-     "NVIDIA Software License Agreement; redistributed unmodified as permitted by it",
-     "https://docs.nvidia.com/deeplearning/cudnn/latest/reference/eula.html", None),
-    ("Intel OpenMP runtime (libiomp5md.dll, inside CTranslate2)", "Intel Simplified Software License",
-     "https://www.intel.com/content/www/us/en/developer/articles/license/onemkl-license-faq.html", None),
+    ("Intel oneMKL and OpenMP runtime (oneMKL statically linked into CTranslate2's ctranslate2.dll, "
+     "OpenMP as libiomp5md.dll next to it)", "Intel Simplified Software License (Version October 2022); "
+     "redistributed unmodified as part of CTranslate2's official build",
+     "https://www.intel.com/content/www/us/en/developer/tools/oneapi/onemkl.html",
+     NOTICES / "intel-simplified-software-license.txt"),
+    ("oneDNN (statically linked into CTranslate2's ctranslate2.dll)", "Apache-2.0",
+     "https://github.com/uxlfoundation/oneDNN", NOTICES / "onednn.txt"),
+    ("NVIDIA cuBLAS (not bundled: downloaded from PyPI inside the app, only if you ask for GPU acceleration)",
+     "NVIDIA Software License Agreement", "https://docs.nvidia.com/cuda/eula/index.html", None),
     ("Microsoft Visual C++ and Universal C runtime DLLs", "Microsoft Visual Studio redistributable license",
      "https://learn.microsoft.com/cpp/windows/redistributing-visual-cpp-files", None),
     ("List of Dirty, Naughty, Obscene, and Otherwise Bad Words (language lists downloaded on request)",

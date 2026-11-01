@@ -625,7 +625,9 @@ static obs_properties_t *vg_properties(void *data)
 	obs_property_list_add_string(mode, "Beep (1 kHz)", "beep");
 	obs_properties_add_text(props, "info",
 				"Keep the Bleepline app open in \"OBS Studio\" mode. Add OBS's Render Delay filter "
-				"to your video sources with the same delay so lip-sync stays right.",
+				"to your video sources with the same delay so lip-sync stays right. Render Delay "
+				"goes up to 500 ms: for a longer delay, add a second one (500 + 300 = 800 ms). "
+				"800 ms catches more words than 500 ms.",
 				OBS_TEXT_INFO);
 	return props;
 }
