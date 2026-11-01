@@ -1,0 +1,25 @@
+# Bleepline built-in list: mild words. Off by default; turn it on for a family-friendly stream.
+hell
+damn*
+dammit
+goddamn*
+goddam
+god damn
+crap*
+piss*
+ass
+asses
+arse
+jackass*
+dumbass*
+badass*
+smartass*
+bloody
+bugger*
+wtf
+omg
+oh my god
+jesus christ
+lmao
+lmfao
+screw you

@@ -1,0 +1,39 @@
+# Bleepline built-in list: strong swearing. On by default.
+# word* = anything starting with it; several words = a phrase. Plain words match exactly, so "dick" doesn't
+# mute "Dickens" and "cock" doesn't mute "cocktail".
+fuck*
+motherfuck*
+dumbfuck*
+clusterfuck*
+mindfuck*
+stfu
+gtfo
+shit*
+bullshit*
+horseshit*
+dipshit*
+batshit*
+chickenshit*
+cunt*
+bitch*
+bastard*
+asshole*
+arsehole*
+dickhead*
+dick
+dicks
+cock
+cocks
+cocksucker*
+prick
+pricks
+twat*
+wanker*
+whore*
+slut*
+douche*
+pussy
+pussies
+bollocks
+bellend*
+knobhead*

@@ -1,0 +1,36 @@
+# Bleepline built-in list: hateful slurs (racist, homophobic, transphobic, ableist). On by default.
+# Some also have harmless meanings ("chink in the armor"): add those to the allow list if you need them.
+nigger*
+nigga*
+sandnigger*
+coon
+coons
+chink
+chinks
+gook*
+spic
+spics
+spick
+wetback*
+beaner*
+kike*
+paki
+pakis
+raghead*
+towelhead*
+jap
+japs
+faggot*
+fag
+fags
+faggy
+dyke
+dykes
+tranny
+trannies
+shemale*
+retard
+retards
+retarded
+tard
+spaz

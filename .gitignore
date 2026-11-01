@@ -7,8 +7,8 @@ __pycache__/
 *.pyc
 
 # downloaded at runtime or for development (models, GPU runtime, portable OBS, OBS headers)
-models/
-runtime/
+/models/
+/runtime/
 tools/
 obs-plugin/
 
@@ -16,7 +16,7 @@ obs-plugin/
 settings.json
 custom_words.txt
 allowed_words.txt
-wordlists/
-sounds/
+/wordlists/
+/sounds/
 selftest.log
 reports/
