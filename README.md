@@ -35,7 +35,9 @@ half a second.
 - **Streamlabs, XSplit, Twitch Studio and others** via VB-CABLE.
 - **Clean a recording** for YouTube: ShadowPlay, Game Bar or OBS recordings; the video is copied
   untouched and you get a list of every muted word with timestamps.
-- **Light on your PC**: about 3-4% CPU with the default model; your GPU stays free for games.
+- **Light on your games**: with an NVIDIA GPU, the GPU does only a few milliseconds of each check and the CPU the
+  rest (about one core); a game on the same GPU lost about 6% of its speed in tests. Without one, it all runs on
+  the CPU.
 - **500-600 ms delay** for live filtering, with optional *early muting* for shorter delays.
 - **Silence, beep or your own sound** as the censor.
 - **Your words, your rules**: built-in English lists made for voice chat (strong swearing, slurs and sexual
@@ -77,13 +79,17 @@ Step-by-step setup for each mode, all options, and measured results are in the *
 
 ## How well does it work?
 
-Measured on 12 synthesized clips with 24 swear words (`test_replay.py`, default tiny.en model on the CPU):
+Measured on 87 real recordings with 101 swear words, none of them used to tune the filter (default base.en
+model on GPU + CPU):
 
 | Delay | Swear words fully muted | Swear-word audio muted |
 |---|---|---|
-| 500 ms | 12 of 24 | 78% |
-| 600 ms (default) | 14 of 24 | 84% |
-| 800 ms | 19 of 24 | 93% |
+| 400 ms | 51 of 101 | 77% |
+| 500 ms | 68 of 101 | 86% |
+| 600 ms (default) | 79 of 101 | 91% |
+
+In 29 minutes of everyday talk without swearing it muted something 3 times. On the CPU only it needs about
+100 ms more delay for the same catches.
 
 What slips through is usually just the first part of a word, because a word can only be recognised once
 most of it has been said. A longer delay gives the filter more time, so if your setup allows it, 800 ms is

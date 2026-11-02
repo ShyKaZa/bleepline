@@ -20,3 +20,13 @@ allowed_words.txt
 /sounds/
 selftest.log
 reports/
+/research/keyword_spotter/piperlib/
+/research/keyword_spotter/voice/
+/research/keyword_spotter/*.npz
+/research/keyword_spotter/*.log
+/research/keyword_spotter/shards/
+/research/keyword_spotter/data/
+/research/keyword_spotter/pylib/
+/research/keyword_spotter/torchlib/
+/research/keyword_spotter/torchlib_cuda/
+/research/keyword_spotter/moonlib/

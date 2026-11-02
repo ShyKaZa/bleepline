@@ -25,10 +25,10 @@ class Settings:
     beep_hz: int = 1000
     censor_volume: float = 0.4
     censor_sound: str | None = None  # file name in the sounds folder
-    live_model: str = "tiny.en"  # fastest reaction; measured 100% at 500-600 ms on real devices
+    live_model: str = "base.en"  # caught the most at 300-600 ms on real recordings (research/keyword_spotter)
     file_model: str = "base.en"  # no time pressure when cleaning a recording, so favour accuracy
     language: str = "auto"  # Whisper code; English-only models ignore it
-    asr_device: str = "cpu"  # live recognition on "cpu" (~3-7% CPU, GPU stays free for games) or "gpu"
+    asr_device: str = "split"  # live recognition: "split" (GPU + CPU, see fast_asr), "cpu" or "gpu"
     min_word_prob: float = 0.15  # sensitivity: lower = mute on less certain recognitions
     early_mute: bool = False  # mute words that start like a banned word, undo if they turn out harmless
     builtin_lists: list = field(default_factory=lambda: list(DEFAULT_BUILTIN))  # wordlists.BUILTIN_LISTS keys
@@ -41,6 +41,7 @@ class Settings:
     update_checked_at: float = 0.0  # time of the last successful check
     update_available: str = ""  # newest version seen then, and its release page
     update_url: str = ""
+    engine: int = 2  # 1.2 and older saved none and had tiny.en on the CPU as the live defaults
 
     @staticmethod
     def load() -> "Settings":
@@ -55,6 +56,11 @@ class Settings:
                 clean.pop(key, None)  # older versions stored device indices
         if clean.get("mode") not in MODES:
             clean["mode"] = "listen" if data.get("mode") == "incoming" else "obs"
+        if "engine" not in data:  # 1.2 and older: their live defaults move to the new ones once, other choices stay
+            if clean.get("live_model") == "tiny.en":
+                clean["live_model"] = "base.en"
+            if clean.get("asr_device") == "cpu":
+                clean["asr_device"] = "split"
         if "builtin_lists" not in data and data.get("use_builtin_list") is False:
             clean["builtin_lists"] = []  # 1.1 and older: the one built-in list was switched off
         return Settings(**clean)

@@ -105,8 +105,8 @@ Download any of these, or add your own:
 
 | Model | Language | Size | Best for |
 |---|---|---|---|
-| tiny.en | English | 75 MB | live filtering (recommended) |
-| base.en | English | 145 MB | recordings; live at 700 ms+ |
+| tiny.en | English | 75 MB | live filtering, lightest |
+| base.en | English | 145 MB | live filtering (recommended) and recordings |
 | small.en | English | 485 MB | recordings |
 | distil-small.en | English | 330 MB | recordings, faster than small.en |
 | tiny | Multilingual | 75 MB | live filtering in any language |
@@ -144,24 +144,29 @@ The **Delay** slider on the Live filter tab has a **Safer: 800 ms** button.
 
 ## Models and resource use
 
-Live filtering runs on the **CPU by default** and leaves the GPU free for games. Normally Whisper
-pads every check to 30 seconds of audio. Bleepline feeds it only the live window (3–4 s of
-context), which is about 36× less work for the same words. Idle engine threads sleep between checks,
-and nothing runs at all while no one is speaking.
+Normally Whisper pads every check to 30 seconds of audio. Bleepline feeds it only the live window
+(3–4 s of context), which is about 36× less work for the same words. Idle engine threads sleep between
+checks, and nothing runs at all while no one is speaking.
 
-Measured on real Windows audio devices at 600 ms delay (16-thread CPU, RTX 3070 Ti), with the test
-audio containing four swear words:
+Live filtering runs on **GPU + CPU by default** (Options → Live filtering runs on). Writing the words
+down takes one trip to the GPU per word piece, and next to a game the GPU switches between the two for
+every one of them, which slows the game far more than the work itself. So the GPU only turns each
+check's audio into features (about 4 ms) and the CPU writes the words. Without an NVIDIA GPU (or its
+runtime from the Setup tab) everything runs on the CPU.
 
-| Live engine | Caught | CPU | GPU | Per check |
+Measured with base.en in real time on held-out speech (16-thread CPU, RTX 3070 Ti), next to a stand-in
+for a game that keeps the GPU at 100%; catches are of 101 swear words in 87 real recordings:
+
+| Live filtering runs on | Per check | CPU (of one core) | The game loses | Fully muted at 500 / 600 ms |
 |---|---|---|---|---|
-| tiny.en on CPU (default) | 3/4 | ~3.7% | 0% | 33 ms |
-| tiny (multilingual) on CPU | 4/4 | ~3.9% | 0% | 31 ms |
-| base.en on CPU | 4/4 | ~7.4% | 0% | 70 ms |
-| tiny.en on GPU | 4/4 | ~1.9% | ~4% | 16 ms |
+| GPU + CPU (default) | 30 ms, checks every 50 ms | 80–90% | ~6% | 68 / 79 |
+| CPU only | 66 ms, checks every 100 ms | ~100% | 0% | 52 / 70 |
+| GPU only | 26 ms | ~25% | 31–34% | 69 / 77 (checks every 100 ms) |
 
-The old approach (padding to 30 s) needed ~90% GPU with a game running, and on CPU it took 375 ms
-per check and caught nothing. The GPU option (Options → Live filtering runs on) is only worth it for
-bigger models. Cleaning recordings uses the GPU when one is available, because it's a one-off batch
+GPU only is meant for a second PC that only streams. GPU + CPU's one core is about 6% of a 16-thread
+processor. tiny.en on the CPU only needs about half of that but catches far fewer (45 against 79 of 101 at
+600 ms). The old approach (padding to 30 s) needed ~90% GPU with a game running, and on CPU it took 375 ms
+per check and caught nothing. Cleaning recordings uses the GPU when one is available, because it's a one-off batch
 job; without one it uses half the CPU's threads. It decodes in batches (about twice as fast) and frees the
 model, and with it the GPU memory, as soon as the file is done.
 
@@ -170,10 +175,16 @@ model, and with it the GPU memory, as soon as the file is done.
 A word can only be recognised once most of it has been spoken, so the delay has to be longer than
 your longest banned word plus the time to check it.
 
-The broadest measurement is `test_replay.py`: 12 synthesized clips (6 phrases, 2 voices) with 24 swear
-words and look-alikes such as "shift", "class" and "cocktail". It replays the live detector with its real
-timing, and a word only counts as muted where the mute arrived before that audio was played. With the
-default tiny.en on the CPU:
+The broadest measurement is on 87 real recordings with 101 swear words and 29 minutes of everyday talk,
+none of it used to tune the filter (`research/keyword_spotter`, with the live loop's real timing): with the
+default base.en on GPU + CPU, 51 of the 101 words are fully muted at 400 ms, 68 at 500 ms and 79 at 600 ms
+(77%, 86% and 91% of their audio), and the everyday talk got 3 false mutes. Most of the wait is the word
+itself: a median swear word lasts 310 ms.
+
+`test_replay.py` uses 12 synthesized clips (6 phrases, 2 voices) with 24 swear words and look-alikes such
+as "shift", "class" and "cocktail". It replays the live detector with its real timing, and a word only counts
+as muted where the mute arrived before that audio was played. With tiny.en on the CPU, the live default
+before GPU + CPU:
 
 | Delay | Fully muted (≥95% of the word) | Swear-word audio muted |
 |---|---|---|
@@ -184,8 +195,9 @@ default tiny.en on the CPU:
 | 1000 ms | 20 of 24 | 94% |
 
 Below 800 ms, what slips through is mostly the start of a word; the few words still missed at 1000 ms were
-misheard by the speech model. base.en fully mutes a few more words at 600 ms (17 of 24) but less of their
-audio overall (83%) at twice the CPU, so tiny.en stays the live default. Words right after a swear word can
+misheard by the speech model. base.en fully mutes a few more words here at 600 ms (17 of 24); on the real
+recordings it catches twice as many as tiny.en (69 against 35 of 101 at 500 ms, both on the GPU), so it is
+now the live default. Words right after a swear word can
 be cut too ("Fuck, I am dead" loses "I am"), because a word still being spoken at the edge of a check is
 muted eagerly: a wrong mute is cheap, a leak is not.
 
@@ -258,6 +270,8 @@ headers. Run `build_obs_plugin.py` before `build.py` so the exe ships the plugin
 | Command | What it checks |
 |---|---|
 | `python test_buffer.py` | delay buffer, mute ramps, future mutes, clock drift, input stalls |
+| `python test_settings.py` | settings from older versions: the old live defaults move to the new ones once |
+| `python test_engine.py [model]` | the live engine on CPU, GPU + CPU and GPU (whichever this PC has): same mutes with word timings only for banned words, same words found in each |
 | `python integration_test.py [delay] [model]` | live engine end to end with real-time pacing |
 | `python test_link.py [delay] [model]` | OBS link protocol, with a Python stand-in for the plugin |
 | `python test_file_cleaner.py [model]` | builds a test video, cleans it, verifies video untouched and words muted |

@@ -53,11 +53,12 @@ jobs:
       - name: Install build dependencies
         run: python -m pip install -r requirements-build.txt
 
-      - name: Quick tests (word lists, delay buffer, storage)
+      - name: Quick tests (word lists, delay buffer, storage, settings)
         run: |
           python test_wordlists.py
           python test_buffer.py
           python test_maintenance.py
+          python test_settings.py
 
       - name: Get the OBS 30 headers
         run: |

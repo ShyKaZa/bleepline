@@ -20,7 +20,8 @@ from faster_whisper import WhisperModel  # noqa: E402
 
 ASR_RATE = 16000
 WINDOW_SEC = 1.2
-MIN_STEP_MS = 100  # re-transcribe at most this often; slows down automatically if the GPU can't keep up
+MIN_STEP_MS = 50  # re-transcribe at most this often: 50 caught more than 100 at 300-500 ms delays (measured)
+CPU_STEP_MS = 100  # all on the CPU: checks take ~65 ms with base models anyway. Both slow down when checks do
 EDGE_MS = 200  # a word ending this close to the window edge may still be in progress
 EARLY_SLACK_MS = 200  # how close two sightings must start to count as the same word
 EARLY_UNDO_EDGE_MS = 100  # a word that ended this long before the window edge counts as finished, for undoing
@@ -52,28 +53,33 @@ def _warm_up(model):
 
 def load_model(model_size: str, device: str = "gpu", cpu_threads: int = 2):
     """(model, device, note). device="cpu" runs on `cpu_threads` CPU threads and never touches the GPU;
-    device="gpu" tries CUDA first and falls back to the CPU with the reason in `note`.
+    device="gpu" tries CUDA first and falls back to the CPU with the reason in `note`; device="split" is "gpu"
+    plus a CPU copy of the model as `model.cpu_decoder`, so live checks only encode on the GPU (see fast_asr).
     Two threads suit live filtering (it must stay light); a one-off file job can use more."""
     path = model_dir(model_size)
     source = str(path) if (path / "model.bin").exists() else model_size
-    note = ""
-    if device == "cpu":
+
+    def on_cpu():
         model = WhisperModel(source, device="cpu", compute_type="int8", cpu_threads=cpu_threads)
         _warm_up(model)
-        return model, "cpu", note
+        return model
+
+    if device == "cpu":
+        return on_cpu(), "cpu", ""
     try:
         import ctranslate2
 
         if ctranslate2.get_cuda_device_count() > 0:
             model = WhisperModel(source, device="cuda", compute_type="float16")
             _warm_up(model)  # cuBLAS loads here, so a missing GPU runtime fails now rather than mid-stream
-            return model, "cuda", note
+            if device == "split":
+                model.cpu_decoder = on_cpu()
+                return model, "split", ""
+            return model, "cuda", ""
         note = "no CUDA GPU found"
     except Exception as exc:
         note = f"GPU unavailable: {str(exc).splitlines()[0][:100]}"
-    model = WhisperModel(source, device="cpu", compute_type="int8", cpu_threads=cpu_threads)
-    _warm_up(model)
-    return model, "cpu", note
+    return on_cpu(), "cpu", note
 
 
 def resolve_language(model, language: str | None) -> str | None:
@@ -111,7 +117,8 @@ class Detector:
         """context_sec: transcribe a short window this long (see fast_asr); "auto" picks what measured best
         (4 s for English-only models, 3 s for multilingual); None = classic 30 s padding.
         early_mute: mute words that merely *start* like a banned word, via on_tentative(start, end, tid)->tid,
-        and undo it with on_retract(tid) once they turn out harmless."""
+        and undo it with on_retract(tid) once they turn out harmless. Without it only banned words need
+        timings, so the transcriber skips that pass for the rest (same mutes, less work per check)."""
         self.early_mute = early_mute
         self.on_tentative = on_tentative
         self.on_retract = on_retract
@@ -128,7 +135,11 @@ class Detector:
 
             if context_sec == "auto":
                 context_sec = 3.0 if getattr(model.model, "is_multilingual", False) else 4.0
-            self.asr = FastTranscriber(model, self.language, context_sec)
+            needs_timings = None if early_mute else (
+                lambda words: bool(self.matcher.find([w for w in words if wordlists.normalize(w)])))
+            self.asr = FastTranscriber(model, self.language, context_sec, needs_timings)
+        on_cpu = model is not None and model.model.device == "cpu"
+        self.min_step_ms = CPU_STEP_MS if on_cpu else MIN_STEP_MS
         self.pad_before = rate * pad_before_ms // 1000
         self.pad_after = rate * pad_after_ms // 1000
         self.on_mute = on_mute
@@ -167,7 +178,7 @@ class Detector:
     def _loop(self):
         win_max = int(WINDOW_SEC * self.rate)
         edge = self.rate * EDGE_MS // 1000
-        step = self.rate * MIN_STEP_MS // 1000
+        step = self.rate * self.min_step_ms // 1000
         chunks: deque = deque()
         window_len = since_run = 0
 
@@ -223,7 +234,7 @@ class Detector:
                 continue
             ms = (time.perf_counter() - t0) * 1000
             self.infer_ms = ms if self.infer_ms == 0 else 0.8 * self.infer_ms + 0.2 * ms
-            step = self.rate * max(MIN_STEP_MS, int(self.infer_ms * 1.25)) // 1000
+            step = self.rate * max(self.min_step_ms, int(self.infer_ms * 1.25)) // 1000
             if self.on_stats:
                 self.on_stats(self.infer_ms)
 

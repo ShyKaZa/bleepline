@@ -33,9 +33,11 @@ CABLE_CAPTURE = "CABLE Output"
 CABLE_PLAYBACK = "CABLE Input"
 WRAP = 640
 SAFER_DELAY_MS = 800
-# From test_replay.py (12 clips, 24 swear words, tiny.en on the CPU); update when the engine changes.
-DELAY_RESULTS = ("600 ms fully mutes about 6 in 10 swear words and 85% of their sound, "
-                 "800 ms about 8 in 10 and 93%")
+# From research/keyword_spotter (87 real recordings, 101 swear words, base.en on GPU + CPU); update when the
+# engine changes.
+DELAY_RESULTS = ("500 ms fully mutes about 2 in 3 swear words and 86% of their sound, "
+                 "600 ms about 8 in 10 and 91%")
+DEVICE_NAMES = {"cuda": "GPU", "split": "GPU + CPU", "cpu": "CPU"}  # detector.load_model's devices
 
 MODE_LABELS = {
     "obs": "OBS Studio - filter inside OBS with the Bleepline plugin (no drivers)",
@@ -355,13 +357,13 @@ class BleeplineApp(tk.Tk):
         if mode == "obs":
             self.delay_scale.state(["disabled"])
             self.safer_btn.state(["disabled"])
-            self.delay_hint.config(text=("In OBS mode the delay is set in each Bleepline filter inside OBS. 800 ms "
-                                         "there catches more than the default 500 ms (" + DELAY_RESULTS + ")."))
+            self.delay_hint.config(text=("In OBS mode the delay is set in each Bleepline filter inside OBS; more "
+                                         "than its default 500 ms catches more (" + DELAY_RESULTS + ")."))
         else:
             if self.engine is None:
                 self.delay_scale.state(["!disabled"])
                 self.safer_btn.state(["!disabled"])
-            self.delay_hint.config(text=("Viewers hear audio this much later. Measured on test speech: "
+            self.delay_hint.config(text=("Viewers hear audio this much later. Measured on real recordings: "
                                          + DELAY_RESULTS + "; what slips through is usually just the start of a "
                                          "word. If the log says a word was caught late, raise it."))
         self._update_mode_status()
@@ -807,12 +809,15 @@ class BleeplineApp(tk.Tk):
         row.pack(fill="x", padx=8, pady=(6, 0))
         ttk.Label(row, text="Live filtering runs on:").pack(side="left")
         self.asr_device_var = tk.StringVar(value=s.asr_device)
-        ttk.Radiobutton(row, text="CPU (recommended)", variable=self.asr_device_var, value="cpu").pack(
-            side="left", padx=(6, 12))
-        ttk.Radiobutton(row, text="GPU (NVIDIA)", variable=self.asr_device_var, value="gpu").pack(side="left")
+        for value, label in (("split", "GPU + CPU (recommended)"), ("cpu", "CPU only"), ("gpu", "GPU only")):
+            ttk.Radiobutton(row, text=label, variable=self.asr_device_var, value=value).pack(side="left", padx=(6, 6))
         ttk.Label(rec, foreground=GREY, wraplength=WRAP, justify="left",
-                  text=("CPU uses about 3% (tiny models) to 7% (base models) of a modern processor and leaves your "
-                        "GPU free for games. GPU is only worth it for bigger models.")).pack(anchor="w", padx=8)
+                  text=("GPU + CPU (NVIDIA): the GPU does a few milliseconds of each check and the CPU the rest "
+                        "(about one core). A game on the same GPU lost about 6% of its speed in tests. CPU only "
+                        "leaves the GPU alone but reacts later: it needs about 100 ms more delay for the same "
+                        "catches. GPU only reacts like GPU + CPU but cost that game about a third of its speed: use "
+                        "it on a second, streaming PC. Without an NVIDIA GPU, all three run on the CPU.")
+                  ).pack(anchor="w", padx=8)
         row = ttk.Frame(rec)
         row.pack(fill="x", padx=8, pady=(6, 2))
         ttk.Label(row, text="Language:").pack(side="left")
@@ -1110,11 +1115,12 @@ class BleeplineApp(tk.Tk):
             self.gpu_status.config(text="No NVIDIA GPU found - that's fine, live filtering runs on the CPU.",
                                    foreground=GREY)
         elif runtime:
-            self.gpu_status.config(text=f"{self._gpu_name}: ready (optional: speeds up cleaning recordings)",
+            self.gpu_status.config(text=f"{self._gpu_name}: ready (live filtering on GPU + CPU, faster cleaning)",
                                    foreground=GREEN)
         else:
-            self.gpu_status.config(text=f"{self._gpu_name} found. Optional runtime (553 MB) speeds up cleaning "
-                                        "recordings; live filtering runs on the CPU without it.", foreground=GREY)
+            self.gpu_status.config(text=f"{self._gpu_name} found. Optional runtime (553 MB): live filtering catches "
+                                        "more words with it (GPU + CPU) and cleaning recordings is faster; without "
+                                        "it everything runs on the CPU.", foreground=GREY)
         self.gpu_btn.config(state="normal" if idle and self._gpu_name and not runtime else "disabled")
 
         installed = st.installed_models()
@@ -1564,7 +1570,7 @@ class BleeplineApp(tk.Tk):
         self.options_note.config(text="Filtering is running: option changes apply after you stop and start it.")
         _, device, note = bundle
         self._live_device = device  # what it actually runs on (a GPU choice can fall back to the CPU)
-        self.stats_label.config(text=f"{self.settings.live_model} on {device.upper()} - idle")
+        self.stats_label.config(text=f"{self.settings.live_model} on {DEVICE_NAMES[device]} - idle")
         for w in self._locked_widgets:
             w.state(["disabled"])
         s = self.settings
@@ -1573,7 +1579,7 @@ class BleeplineApp(tk.Tk):
         else:
             inp, out, _ = self._route()
             self._log(f"Filtering {inp}  ->  {out}  ({s.delay_ms} ms delay)")
-        self._log(f"Speech model {s.live_model} on {device.upper()}, censor: {s.mute_mode}"
+        self._log(f"Speech model {s.live_model} on {DEVICE_NAMES[device]}, censor: {s.mute_mode}"
                   + (", early muting on" if s.early_mute else ""))
         self._slow_checks = 0
         for problem in self._windows_problems:
@@ -1581,7 +1587,7 @@ class BleeplineApp(tk.Tk):
         if not s.live_model.endswith(".en") and s.language == "auto":
             self._log("Tip: set a fixed language in Options. Auto-detect has to guess the language from about a "
                       "second of audio, which is slower and often wrong.")
-        if device == "cpu" and s.asr_device == "gpu":
+        if device == "cpu" and s.asr_device != "cpu":
             self._log(f"GPU not available{f' ({note})' if note else ''}, running on the CPU instead.")
 
     def _on_start_failed(self, err):
@@ -1627,7 +1633,7 @@ class BleeplineApp(tk.Tk):
                     db = 20 * math.log10(max(payload, 1e-6))
                     self.level_bar["value"] = max(0.0, min(100.0, (db + 60) * 100 / 60))  # -60..0 dBFS
                 elif kind == "stats" and self.engine is not None:
-                    self.stats_label.config(text=f"{self.settings.live_model} on {self._live_device.upper()} "
+                    self.stats_label.config(text=f"{self.settings.live_model} on {DEVICE_NAMES[self._live_device]} "
                                                  f"- {payload:.0f} ms per check")
                     self._maybe_warn_slow(payload)
                 elif kind == "log":
@@ -1684,7 +1690,7 @@ class BleeplineApp(tk.Tk):
         self._slow_checks = self._slow_checks + 1 if safe > delay else 0
         if self._slow_checks == 10:
             where = "the delay in the Bleepline filter in OBS" if mode == "obs" else "the Delay slider"
-            busy = "the GPU" if self._live_device == "cuda" else "the CPU"
+            busy = {"cuda": "the GPU", "split": "the CPU or GPU"}.get(self._live_device, "the CPU")
             self._log(f"Checks are taking {ms:.0f} ms ({busy} is busy, probably with a game). At {delay} ms delay "
                       f"some words may get through: raise {where} to about {min(safe, 1500)} ms, use a smaller "
                       "model, or set a fixed language in Options.")
