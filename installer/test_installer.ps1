@@ -13,6 +13,7 @@ $dataDir = "$env:LOCALAPPDATA\Bleepline"
 $dataExisted = Test-Path $dataDir
 $startMenu = [Environment]::GetFolderPath("Programs") + "\Bleepline.lnk"
 $failures = 0
+$version = [regex]::Match((Get-Content "$PSScriptRoot\..\app\version.py" -Raw), 'VERSION = "([^"]+)"').Groups[1].Value
 function Check($ok, $what) { if ($ok) { Write-Host "  ok   $what" } else { Write-Host "  FAIL $what"; $script:failures++ } }
 function Install($argsList) { (Start-Process $Setup -ArgumentList $argsList -Wait -PassThru).ExitCode }
 function Uninstall($dir) {
@@ -38,7 +39,7 @@ Check (Test-Path "$a\Bleepline.exe") "Bleepline.exe installed"
 Check (Test-Path "$a\_internal\assets\wordlists\strong.txt") "built-in word lists bundled"
 Check (-not (Test-Path "$a\_internal\ctranslate2\cudnn64_9.dll")) "cuDNN loader left out"
 $e = Get-ItemProperty $innoKey
-Check ($e.DisplayVersion -eq "1.2.0" -and $e.Publisher -eq "Gorgho") "Apps & features entry: version $($e.DisplayVersion), publisher $($e.Publisher)"
+Check ($e.DisplayVersion -eq $version -and $e.Publisher -eq "Gorgho") "Apps & features entry: version $($e.DisplayVersion), publisher $($e.Publisher)"
 Check ((Get-ItemProperty "HKCU:\Software\Bleepline").CheckForUpdates -eq 1) "update-check choice saved (on)"
 Check (Test-Path $startMenu) "Start menu shortcut"
 

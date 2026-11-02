@@ -24,8 +24,9 @@ jobs:
           cache: pip
           cache-dependency-path: requirements-build.txt
       - run: python -m pip install -r requirements-build.txt
-      - name: Word lists, delay buffer, storage
+      - name: Word lists, delay buffer, storage, settings
         run: |
           python test_wordlists.py
           python test_buffer.py
           python test_maintenance.py
+          python test_settings.py
