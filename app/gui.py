@@ -33,6 +33,7 @@ CABLE_CAPTURE = "CABLE Output"
 CABLE_PLAYBACK = "CABLE Input"
 WRAP = 640
 SAFER_DELAY_MS = 800
+SLOW_CHECKS = 100  # slow checks in a row before saying so (~5 s): a burst of swearing slows them briefly too
 # From research/keyword_spotter (87 real recordings, 101 swear words, base.en on GPU + CPU); update when the
 # engine changes.
 DELAY_RESULTS = ("500 ms fully mutes about 2 in 3 swear words and 86% of their sound, "
@@ -1683,12 +1684,15 @@ class BleeplineApp(tk.Tk):
 
     def _maybe_warn_slow(self, ms: float):
         """Once per session: if checks stay slow (GPU busy with a game), say what delay would be safe."""
+        if self._slow_checks < 0:
+            return  # already said
         mode = self.mode_var.get()
         delay = round(self.delay_var.get() / 10) * 10 if mode != "obs" else 500
         # reaction ~ wait for the next check (1.25x) + the check itself + the word being spoken (~400 ms)
         safe = int(math.ceil((2.25 * ms + 400) / 50) * 50)
         self._slow_checks = self._slow_checks + 1 if safe > delay else 0
-        if self._slow_checks == 10:
+        if self._slow_checks == SLOW_CHECKS:
+            self._slow_checks = -1
             where = "the delay in the Bleepline filter in OBS" if mode == "obs" else "the Delay slider"
             busy = {"cuda": "the GPU", "split": "the CPU or GPU"}.get(self._live_device, "the CPU")
             self._log(f"Checks are taking {ms:.0f} ms ({busy} is busy, probably with a game). At {delay} ms delay "

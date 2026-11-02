@@ -3,7 +3,7 @@ End-to-end test of the real engine code path (input callback -> buffer ->
 Whisper worker thread -> mutes -> output callback) with real-time pacing,
 using Windows TTS speech containing known profanity. No audio hardware.
 
-    python integration_test.py [delay_ms] [model_size]
+    python integration_test.py [delay_ms] [model_size] [split|cpu|gpu]
 """
 import subprocess
 import sys
@@ -16,6 +16,7 @@ import numpy as np
 from better_profanity import profanity
 
 from app.audio_engine import AudioEngine
+from app.detector import load_model
 
 RATE = 48000
 BLOCK = 480
@@ -47,6 +48,7 @@ def clean(word: str) -> str:
 def main():
     delay_ms = int(sys.argv[1]) if len(sys.argv) > 1 else 600
     model_size = sys.argv[2] if len(sys.argv) > 2 else "base.en"
+    device = sys.argv[3] if len(sys.argv) > 3 else "split"  # as the app's Options: GPU + CPU, CPU only, GPU only
 
     wav = Path(tempfile.gettempdir()) / "bleepline_test_phrase.wav"
     if not wav.exists():
@@ -55,7 +57,7 @@ def main():
     full = np.concatenate([speech, np.zeros(RATE * 2, np.float32)])
 
     catches = []
-    eng = AudioEngine(delay_ms=delay_ms, model_size=model_size, samplerate=RATE,
+    eng = AudioEngine(delay_ms=delay_ms, samplerate=RATE, model_bundle=load_model(model_size, device),
                       on_catch=lambda w, late: catches.append((w, late)))
     print(f"model={model_size} device={eng.device} {eng.device_note} delay={delay_ms}ms")
 

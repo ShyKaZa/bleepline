@@ -203,6 +203,10 @@ muted eagerly: a wrong mute is cheap, a leak is not.
 
 Other tests in this folder, with one phrase holding four swear words:
 
+- The app itself in OBS mode, fed by the Python stand-in for the plugin (the phrase three times, real time),
+  base.en on GPU + CPU at 500 ms: **12/12**. On GPU only, next to a stand-in game keeping the GPU at 100%:
+  9/12, and the app said once that checks were slow.
+- Live engine with real-time pacing (`integration_test.py`), base.en on GPU + CPU: 4/4 at 500 and 600 ms.
 - OBS plugin in real OBS 33, recorded by OBS, tiny.en: **3/4** at 500 and 600 ms (also with the beep and
   with a custom sound sent from the app). The speech model mishears "shit" in "shit happens" in OBS's copy
   of the audio; the same phrase fed through the Python stand-in for the plugin (`test_link.py`) gets 4/4.
@@ -211,7 +215,9 @@ Other tests in this folder, with one phrase holding four swear words:
 - Recording cleaner, base.en: 4/4 muted, video untouched, clean speech kept at 100%.
 
 Every live catch is logged. If one says **caught late**, the start of the word may have been heard;
-raise the delay. Real voices are messier than test speech, and loud game audio makes recognition
+raise the delay. base.en sometimes dates a word that follows a pause too early ("shit" in "Okay whatever,
+shit happens" by about half a second); the mute then starts early and covers the word, but the log still
+calls it late. Real voices are messier than test speech, and loud game audio makes recognition
 harder, so treat this as a strong safety net, not a guarantee.
 
 ## Running from source / building
@@ -272,7 +278,7 @@ headers. Run `build_obs_plugin.py` before `build.py` so the exe ships the plugin
 | `python test_buffer.py` | delay buffer, mute ramps, future mutes, clock drift, input stalls |
 | `python test_settings.py` | settings from older versions: the old live defaults move to the new ones once |
 | `python test_engine.py [model]` | the live engine on CPU, GPU + CPU and GPU (whichever this PC has): same mutes with word timings only for banned words, same words found in each |
-| `python integration_test.py [delay] [model]` | live engine end to end with real-time pacing |
+| `python integration_test.py [delay] [model] [split\|cpu\|gpu]` | live engine end to end with real-time pacing (default: base.en on GPU + CPU) |
 | `python test_link.py [delay] [model]` | OBS link protocol, with a Python stand-in for the plugin |
 | `python test_file_cleaner.py [model]` | builds a test video, cleans it, verifies video untouched and words muted |
 | `python test_maintenance.py` | storage report and removal (models, GPU runtime, OBS plugin, everything) on a temp folder |
