@@ -366,7 +366,7 @@ class BleeplineApp(tk.Tk):
                 self.safer_btn.state(["!disabled"])
             self.delay_hint.config(text=("Viewers hear audio this much later. Measured on real recordings: "
                                          + DELAY_RESULTS + "; what slips through is usually just the start of a "
-                                         "word. If the log says a word was caught late, raise it."))
+                                         "word. If the log often says a word was caught late, raise it."))
         self._update_mode_status()
 
     def _load_devices(self):
@@ -1626,8 +1626,10 @@ class BleeplineApp(tk.Tk):
                     word, late, src = payload
                     where = f" in {src}" if src else ""
                     if late > 0:
+                        # judged from the speech model's own timing of the word: right about 5 times in 6
+                        # (research/keyword_spotter/README.md), so the advice is for when it keeps happening
                         self._log(f"muted \"{word}\"{where} - caught {late} ms late, its start may have been "
-                                  "heard: raise the delay")
+                                  "heard (if this keeps happening, raise the delay)")
                     else:
                         self._log(f"muted \"{word}\"{where}")
                 elif kind == "level":

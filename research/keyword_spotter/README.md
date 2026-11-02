@@ -390,3 +390,25 @@ Catches (87 swearing clips, 101 swear words; the first 120 everyday clips, 29 mi
 - Most misses at 500 ms, any setup: "dick" (7-11, many of them a name), "bitch" (5-8), "shit" (4-5), "crap" (3-7).
 - The app now uses split with 50 ms checks by default ("GPU + CPU"), with all on the CPU (100 ms checks) and all on
   the GPU as options; `test_engine.py` in the repo root checks each placement.
+
+### The "caught late" note (2026-11-02)
+
+The app logs "caught N ms late" when audio past the model's start of the word had already been played when the
+mute went out. With base.en on GPU + CPU, the scratch `late_*.py` scripts replayed it on the cached checks of the
+87 swearing clips; right = the word was not fully muted:
+
+| at 500 ms | notes | right | wrong | real leaks without a note |
+|---|---|---|---|---|
+| the first sighting's start (the app) | 35 | 29 | 6 | 2 |
+| start no earlier than end - 300 / 400 ms | 22 / 35 | 17 / 29 | 5 / 6 | 14 / 2 |
+| start moved past the last pause in the word's span (150 ms, -30 dB) | 30 | 25 | 5 | 6 |
+| median start of the sightings over the next 800 ms | 32 | 28 | 4 | 3 |
+| re-timed over 3 s once the word has finished | 33 | 28 | 5 | 3 |
+| no note under 20 ms | 32 | 28 | 4 | 3 |
+
+At 600 ms the app's note is right in 18 of 23 and misses 2 leaks; none of the others does better. tiny.en placed
+starts a median 180 ms late, so its notes missed 35 of 57 leaks at 500 ms; base.en's starts are a median 0 ms off
+(10%: -64 ms, 90%: +50 ms), 6 of 99 more than 200 ms early. Three of the six wrong notes are words 95.8-97.8% muted
+(a little was heard) and two say "1 ms". The early ones come from the model leaving out a comma and stretching the
+next word back over the pause; pauses inside real words ("fucking") make cutting at pauses miss real leaks. So the
+note stays as it is, and the app now says to raise the delay if it keeps happening rather than after one note.

@@ -214,10 +214,12 @@ Other tests in this folder, with one phrase holding four swear words:
 - Desktop-audio mode on real Windows audio devices, tiny.en: 24/24 words fully muted at 500 and 600 ms.
 - Recording cleaner, base.en: 4/4 muted, video untouched, clean speech kept at 100%.
 
-Every live catch is logged. If one says **caught late**, the start of the word may have been heard;
-raise the delay. base.en sometimes dates a word that follows a pause too early ("shit" in "Okay whatever,
-shit happens" by about half a second); the mute then starts early and covers the word, but the log still
-calls it late. Real voices are messier than test speech, and loud game audio makes recognition
+Every live catch is logged. If one says **caught late**, the start of the word may have been heard; if
+that keeps happening, raise the delay. The note goes by the speech model's own timing of the word, so a
+single one can be wrong: on the real recordings at 500 ms it was right in 29 of 35 notes and flagged 29 of
+the 31 words whose start was heard. base.en sometimes dates a word that follows a pause too early ("shit"
+in "Okay whatever, shit happens" by about half a second); the mute then starts early and covers the word,
+but the log still calls it late. Real voices are messier than test speech, and loud game audio makes recognition
 harder, so treat this as a strong safety net, not a guarantee.
 
 ## Running from source / building
