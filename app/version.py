@@ -1,5 +1,5 @@
 APP_NAME = "Bleepline"
-VERSION = "1.3.0"
+VERSION = "1.3.1"
 AUTHOR = "Gorgho"
 # Shown as buttons in the About tab (and in Apps & features) once filled in; empty = hidden.
 SUPPORT_URL = ""  # donation page, e.g. https://ko-fi.com/... or https://github.com/sponsors/...
