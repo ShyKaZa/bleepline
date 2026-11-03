@@ -136,6 +136,7 @@ class BleeplineApp(tk.Tk):
             self.iconbitmap(default=str(icon))  # also used by dialogs
         self.engine = None  # AudioEngine, or LinkServer in OBS mode
         self._live_models: dict = {}
+        self._stand_ins: set[str] = set()  # "live"/"file" model pickers showing a stand-in (see _refresh_models)
         self._events: queue.Queue = queue.Queue()
         self._starting = self._busy = self._cleaning = False
         self._wiped = False  # after "Remove everything", don't recreate settings.json on close
@@ -145,6 +146,7 @@ class BleeplineApp(tk.Tk):
         self._windows_problems: list[str] = []
         self._slow_checks = 0
         self._live_device = "cpu"
+        self._live_name = ""  # the live model running (or starting)
         self._gpu_name = st.nvidia_gpu_name()
         self.inputs: list[str] = []
         self.outputs: list[str] = []
@@ -324,6 +326,7 @@ class BleeplineApp(tk.Tk):
         self.live_model_var = tk.StringVar(value=self.settings.live_model)
         self.live_model_combo = ttk.Combobox(row2, textvariable=self.live_model_var, state="readonly", width=18)
         self.live_model_combo.pack(side="left", padx=6)
+        self.live_model_combo.bind("<<ComboboxSelected>>", lambda _e: self._stand_ins.discard("live"))
         ttk.Label(row2, text="tiny.en is the lightest; base.en catches the most. Multilingual: tiny / base.",
                   foreground=GREY).pack(side="left")
 
@@ -461,6 +464,7 @@ class BleeplineApp(tk.Tk):
         self.file_model_var = tk.StringVar(value=self.settings.file_model)
         self.file_model_combo = ttk.Combobox(mrow, textvariable=self.file_model_var, state="readonly", width=18)
         self.file_model_combo.pack(side="left")
+        self.file_model_combo.bind("<<ComboboxSelected>>", lambda _e: self._stand_ins.discard("file"))
         ttk.Label(mrow, text="Bigger = more accurate, slower. No time pressure here.", foreground=GREY).pack(
             side="left", padx=6)
 
@@ -1097,11 +1101,14 @@ class BleeplineApp(tk.Tk):
 
     def _refresh_models(self):
         installed = st.installed_models()
-        for combo, var, preferred in ((self.live_model_combo, self.live_model_var, self.settings.live_model),
-                                      (self.file_model_combo, self.file_model_var, self.settings.file_model)):
+        for key, combo, var, preferred in (
+                ("live", self.live_model_combo, self.live_model_var, self.settings.live_model),
+                ("file", self.file_model_combo, self.file_model_var, self.settings.file_model)):
             combo["values"] = installed
-            if var.get() not in installed:
+            # Without the chosen model another one stands in, and makes way once the chosen one is downloaded.
+            if var.get() not in installed or (key in self._stand_ins and preferred in installed):
                 var.set(preferred if preferred in installed else installed[0] if installed else "")
+                (self._stand_ins.discard if var.get() == preferred else self._stand_ins.add)(key)
         self._refresh_model_tree()
 
     def _refresh_setup_status(self):
@@ -1451,8 +1458,10 @@ class BleeplineApp(tk.Tk):
         s = self.settings
         s.mode = self.mode_var.get()
         s.delay_ms = round(self.delay_var.get() / 10) * 10
-        s.live_model = self.live_model_var.get() or s.live_model
-        s.file_model = self.file_model_var.get() or s.file_model
+        if "live" not in self._stand_ins:  # a stand-in for a model that isn't downloaded isn't the choice
+            s.live_model = self.live_model_var.get() or s.live_model
+        if "file" not in self._stand_ins:
+            s.file_model = self.file_model_var.get() or s.file_model
         s.auto_start = self.auto_start_var.get()
         s.desktop_device = self.desktop_var.get() or s.desktop_device
         s.monitor_device = self.monitor_var.get() or s.monitor_device
@@ -1509,7 +1518,8 @@ class BleeplineApp(tk.Tk):
             return
         if mode == "obs" and not st.obs_plugin_installed():
             self._log("Note: the OBS plugin isn't installed yet, so OBS can't connect (Setup tab).")
-        self._warn_language_mismatch(s.live_model, self.log_text)
+        model = self._live_name = self.live_model_var.get()  # can be a stand-in for s.live_model
+        self._warn_language_mismatch(model, self.log_text)
         matcher = self._build_matcher()
 
         self._starting = True
@@ -1521,10 +1531,11 @@ class BleeplineApp(tk.Tk):
             try:
                 from .detector import load_model
 
-                key = (s.live_model, s.asr_device)
+                key = (model, s.asr_device)
                 bundle = self._live_models.get(key)
                 if bundle is None:
-                    bundle = self._live_models[key] = load_model(s.live_model, s.asr_device)
+                    self._live_models.clear()  # keep one: an old model would hold its (GPU) memory until restart
+                    bundle = self._live_models[key] = load_model(model, s.asr_device)
                 if mode == "obs":
                     from .link_server import LinkServer
 
@@ -1571,7 +1582,7 @@ class BleeplineApp(tk.Tk):
         self.options_note.config(text="Filtering is running: option changes apply after you stop and start it.")
         _, device, note = bundle
         self._live_device = device  # what it actually runs on (a GPU choice can fall back to the CPU)
-        self.stats_label.config(text=f"{self.settings.live_model} on {DEVICE_NAMES[device]} - idle")
+        self.stats_label.config(text=f"{self._live_name} on {DEVICE_NAMES[device]} - idle")
         for w in self._locked_widgets:
             w.state(["disabled"])
         s = self.settings
@@ -1580,12 +1591,12 @@ class BleeplineApp(tk.Tk):
         else:
             inp, out, _ = self._route()
             self._log(f"Filtering {inp}  ->  {out}  ({s.delay_ms} ms delay)")
-        self._log(f"Speech model {s.live_model} on {DEVICE_NAMES[device]}, censor: {s.mute_mode}"
+        self._log(f"Speech model {self._live_name} on {DEVICE_NAMES[device]}, censor: {s.mute_mode}"
                   + (", early muting on" if s.early_mute else ""))
         self._slow_checks = 0
         for problem in self._windows_problems:
             self._log(f"Warning: {problem}")
-        if not s.live_model.endswith(".en") and s.language == "auto":
+        if not self._live_name.endswith(".en") and s.language == "auto":
             self._log("Tip: set a fixed language in Options. Auto-detect has to guess the language from about a "
                       "second of audio, which is slower and often wrong.")
         if device == "cpu" and s.asr_device != "cpu":
@@ -1636,7 +1647,7 @@ class BleeplineApp(tk.Tk):
                     db = 20 * math.log10(max(payload, 1e-6))
                     self.level_bar["value"] = max(0.0, min(100.0, (db + 60) * 100 / 60))  # -60..0 dBFS
                 elif kind == "stats" and self.engine is not None:
-                    self.stats_label.config(text=f"{self.settings.live_model} on {DEVICE_NAMES[self._live_device]} "
+                    self.stats_label.config(text=f"{self._live_name} on {DEVICE_NAMES[self._live_device]} "
                                                  f"- {payload:.0f} ms per check")
                     self._maybe_warn_slow(payload)
                 elif kind == "log":
@@ -1689,7 +1700,10 @@ class BleeplineApp(tk.Tk):
         if self._slow_checks < 0:
             return  # already said
         mode = self.mode_var.get()
-        delay = round(self.delay_var.get() / 10) * 10 if mode != "obs" else 500
+        if mode == "obs":
+            delay = self.engine.shortest_delay_ms() or 500  # each OBS filter has its own
+        else:
+            delay = round(self.delay_var.get() / 10) * 10
         # reaction ~ wait for the next check (1.25x) + the check itself + the word being spoken (~400 ms)
         safe = int(math.ceil((2.25 * ms + 400) / 50) * 50)
         self._slow_checks = self._slow_checks + 1 if safe > delay else 0

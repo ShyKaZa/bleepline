@@ -99,6 +99,21 @@ def test_early_mute_undo_and_confirm():
     assert not eng._tentative, "played-out early mutes should be cleaned up"
 
 
+def test_late_mute_fades_instead_of_clicking():
+    for early in (False, True):
+        eng = make(delay_ms=500)
+        for _ in range(100):
+            step(eng)
+        start, end = eng.total_read - 2400, eng.total_read + 9600  # the word began playing 50 ms ago
+        tid = eng.add_tentative(start, end) if early else eng._apply_mute(start, end)
+        out = step(eng)[:, 0]
+        assert np.isclose(out[0], 0.1) and np.allclose(out[eng.ramp:], 0.0), early
+        assert np.max(np.abs(np.diff(out))) <= 0.1 / eng.ramp + 1e-6, f"cut in instead of fading (early={early})"
+        if early:
+            eng.add_tentative(start + 1200, end, tid)  # extending one that's already fading keeps it muted
+            assert np.allclose(step(eng)[:, 0], 0.0)
+
+
 if __name__ == "__main__":
     for name, fn in list(globals().items()):
         if name.startswith("test_"):

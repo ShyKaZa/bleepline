@@ -277,8 +277,8 @@ headers. Run `build_obs_plugin.py` before `build.py` so the exe ships the plugin
 
 | Command | What it checks |
 |---|---|
-| `python test_buffer.py` | delay buffer, mute ramps, future mutes, clock drift, input stalls |
-| `python test_settings.py` | settings from older versions: the old live defaults move to the new ones once |
+| `python test_buffer.py` | delay buffer, mute ramps, future and late mutes, clock drift, input stalls |
+| `python test_settings.py` | settings from older versions: the old live defaults move to the new ones once; values of the wrong type get the default |
 | `python test_engine.py [model]` | the live engine on CPU, GPU + CPU and GPU (whichever this PC has): same mutes with word timings only for banned words, same words found in each |
 | `python integration_test.py [delay] [model] [split\|cpu\|gpu]` | live engine end to end with real-time pacing (default: base.en on GPU + CPU) |
 | `python test_link.py [delay] [model]` | OBS link protocol, with a Python stand-in for the plugin |

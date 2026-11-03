@@ -1,5 +1,7 @@
 """Clean a finished recording: transcribe it with full context, mute banned words, leave video untouched."""
+import contextlib
 import os
+import tempfile
 from pathlib import Path
 
 import av
@@ -38,16 +40,17 @@ def clean_file(src, dst=None, model_size="base.en", mute_mode="silence", pad_bef
     lang = resolve_language(model, language)
     log(f"Transcribing with {model_size} on {device.upper()} (language: {lang or 'auto-detect'})...")
 
-    tracks, duration = _decode_for_asr(src, lambda f: progress(f * 0.2, "Reading audio"))
     catches, ranges = [], []
-    for n, (index, audio) in enumerate(tracks.items()):
-        base = 0.2 + 0.6 * n / len(tracks)
-        words = _transcribe(model, audio, lang, lambda end: progress(
-            base + 0.6 / len(tracks) * min(1.0, end / max(duration, 1e-3)), "Finding banned words"), log)
-        # Whole-track matching, so phrases split across Whisper segments are still found.
-        for start_s, end_s, text in banned_spans(matcher, words, min_prob):
-            catches.append((float(start_s), text))
-            ranges.append((start_s - pad_before_ms / 1000, end_s + pad_after_ms / 1000))
+    with tempfile.TemporaryDirectory(prefix="bleepline-") as tmp:
+        tracks, duration = _decode_for_asr(src, Path(tmp), lambda f: progress(f * 0.2, "Reading audio"))
+        for n, path in enumerate(tracks.values()):
+            base = 0.2 + 0.6 * n / len(tracks)
+            words = _transcribe(model, _load_track(path), lang, lambda end: progress(
+                base + 0.6 / len(tracks) * min(1.0, end / max(duration, 1e-3)), "Finding banned words"), log)
+            # Whole-track matching, so phrases split across Whisper segments are still found.
+            for start_s, end_s, text in banned_spans(matcher, words, min_prob):
+                catches.append((float(start_s), text))
+                ranges.append((start_s - pad_before_ms / 1000, end_s + pad_after_ms / 1000))
     catches.sort()
     ranges = _merge(sorted(ranges))
     log(f"Found {len(catches)} banned word(s). Writing cleaned copy...")
@@ -81,25 +84,32 @@ def _collect(segments, progress):
     return words
 
 
-def _decode_for_asr(src: Path, progress):
-    """Every audio track decoded to 16 kHz mono float32. Returns ({stream index: samples}, duration_s)."""
-    with av.open(str(src)) as inp:
+def _decode_for_asr(src: Path, tmp: Path, progress):
+    """Every audio track decoded to 16 kHz mono 16-bit (as faster-whisper decodes) into a file in `tmp`, in one
+    pass: held in memory, 3 hours of 6 tracks would need about 4 GB. Returns ({stream index: path}, duration_s)."""
+    with av.open(str(src)) as inp, contextlib.ExitStack() as files:
         streams = [s for s in inp.streams if s.type == "audio"]
         if not streams:
             raise ValueError("This file has no audio track.")
         duration = float(inp.duration / av.time_base) if inp.duration else 0.0
-        resamplers = {s.index: av.AudioResampler(format="flt", layout="mono", rate=ASR_RATE) for s in streams}
-        chunks = {s.index: [] for s in streams}
+        resamplers = {s.index: av.AudioResampler(format="s16", layout="mono", rate=ASR_RATE) for s in streams}
+        paths = {s.index: tmp / f"track{s.index}.pcm" for s in streams}
+        outs = {i: files.enter_context(open(p, "wb")) for i, p in paths.items()}
         for packet in inp.demux(*streams):
             for frame in packet.decode():
                 for out in resamplers[packet.stream.index].resample(frame):
-                    chunks[packet.stream.index].append(out.to_ndarray().reshape(-1))
+                    outs[packet.stream.index].write(out.to_ndarray().tobytes())
                 if duration and frame.pts is not None:
                     progress(min(1.0, float(frame.pts * frame.time_base) / duration))
-        tracks = {i: np.concatenate(c) if c else np.zeros(1, np.float32) for i, c in chunks.items()}
     if not duration:
-        duration = max(len(a) for a in tracks.values()) / ASR_RATE
-    return tracks, duration
+        duration = max(p.stat().st_size for p in paths.values()) / 2 / ASR_RATE
+    return paths, duration
+
+
+def _load_track(path: Path) -> np.ndarray:
+    audio = np.fromfile(path, np.int16).astype(np.float32)
+    audio /= 32768.0  # in place: a 3-hour track is 700 MB as float32
+    return audio if len(audio) else np.zeros(1, np.float32)
 
 
 def _merge(ranges):

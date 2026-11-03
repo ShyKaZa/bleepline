@@ -134,8 +134,10 @@ static void vg_apply_mute(struct vg_filter *f, int64_t start, int64_t end)
 {
 	EnterCriticalSection(&f->lock);
 	if (f->gain) {
-		int64_t lo = start - f->ramp;
 		int64_t read_pos = f->written - f->delay;
+		if (start < read_pos + f->ramp)
+			start = read_pos + f->ramp; /* already playing: fade out from here instead of cutting in (a click) */
+		int64_t lo = start - f->ramp;
 		int64_t oldest = f->written - f->size + 1;
 		int64_t hi = end + f->ramp;
 		if (lo < read_pos)
@@ -187,6 +189,11 @@ static void vg_set_early(struct vg_filter *f, uint32_t id, int64_t start, int64_
 			slot = i;
 	}
 	if (slot >= 0) { /* if all 32 are busy the early mute is skipped; the normal mute still follows */
+		/* One that should have begun already fades out from the read position instead of cutting in
+		 * (a click); one that's already fading keeps its start. */
+		int64_t fade_from = f->written - f->delay + f->ramp;
+		bool fading = f->early[slot].used && f->early[slot].start < fade_from;
+		start = fading ? f->early[slot].start : start < fade_from ? fade_from : start;
 		f->early[slot].id = id;
 		f->early[slot].start = start;
 		f->early[slot].end = end;

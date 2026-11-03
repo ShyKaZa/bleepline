@@ -1,5 +1,6 @@
 import json
 import os
+import typing
 from dataclasses import asdict, dataclass, field, fields
 from pathlib import Path
 
@@ -7,7 +8,8 @@ from .paths import CUSTOM_WORDS_PATH, SETTINGS_PATH
 
 MODES = ("obs", "stream", "listen", "custom")
 DEFAULT_BUILTIN = ("strong", "slurs", "sexual")  # built-in word lists on by default (see wordlists.BUILTIN_LISTS)
-DEVICE_FIELDS = ("desktop_device", "monitor_device", "input_device", "output_device")
+CHOICES = {"asr_device": ("split", "cpu", "gpu"), "mute_mode": ("silence", "beep", "sound"),
+           "theme": ("dark", "light", "system")}
 
 
 @dataclass
@@ -49,11 +51,12 @@ class Settings:
             data = json.loads(SETTINGS_PATH.read_text(encoding="utf-8"))
         except Exception:
             return Settings()
-        known = {f.name for f in fields(Settings)}
-        clean = {k: v for k, v in data.items() if k in known}
-        for key in DEVICE_FIELDS:
-            if not isinstance(clean.get(key), (str, type(None))):
-                clean.pop(key, None)  # older versions stored device indices
+        known = {f.name: f.type for f in fields(Settings)}
+        # A value of the wrong type (older versions stored device indices, or a hand edit) gets the default.
+        clean = {k: v for k, v in data.items() if k in known and _fits(v, known[k])}
+        for key, allowed in CHOICES.items():
+            if clean.get(key, allowed[0]) not in allowed:
+                del clean[key]
         if clean.get("mode") not in MODES:
             clean["mode"] = "listen" if data.get("mode") == "incoming" else "obs"
         if "engine" not in data:  # 1.2 and older: their live defaults move to the new ones once, other choices stay
@@ -67,6 +70,18 @@ class Settings:
 
     def save(self) -> None:
         write_atomic(SETTINGS_PATH, json.dumps(asdict(self), indent=2))
+
+
+def _fits(value, kind) -> bool:
+    """A JSON value of a field's type: true/false don't count as numbers, whole numbers do as decimals."""
+    kinds = typing.get_args(kind) or (kind,)
+    if float in kinds:
+        kinds += (int,)
+    if isinstance(value, bool) and bool not in kinds:
+        return False
+    if isinstance(value, list):
+        return list in kinds and all(isinstance(v, str) for v in value)
+    return isinstance(value, kinds)
 
 
 def write_atomic(path: Path, text: str) -> None:

@@ -259,17 +259,29 @@ class AudioEngine:
             if tid is None:
                 tid = self._next_tentative
                 self._next_tentative += 1
-            self._tentative[tid] = (start_abs, end_abs)
+            old = self._tentative.get(tid)
+            self._tentative[tid] = (self._fade_start(start_abs, old[0] if old else None), end_abs)
         return tid
 
     def retract(self, tid: int) -> None:
         with self._lock:
             self._tentative.pop(tid, None)
 
+    def _fade_start(self, start_abs: int, old_start: int | None = None) -> int:
+        """Caller holds the lock. A mute that should have begun already fades out from the read position
+        instead of cutting in (a click); one that's already fading keeps its start."""
+        if self.total_read is None:
+            return start_abs
+        fade_from = self.total_read + self.ramp
+        if old_start is not None and old_start < fade_from:
+            return old_start
+        return max(start_abs, fade_from)
+
     def _apply_mute(self, start_abs: int, end_abs: int) -> int:
         """Mute [start_abs, end_abs) with short ramps. Returns the read position at the time of muting."""
         with self._lock:
             read_pos = self.total_read if self.total_read is not None else -(10**12)
+            start_abs = self._fade_start(start_abs)
             lo = max(start_abs - self.ramp, read_pos, self.total_written - self.buffer_len + 1)
             hi = min(end_abs + self.ramp, self.total_written)
             if hi > lo:

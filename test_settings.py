@@ -27,5 +27,22 @@ def test_live_engine_defaults():
     print("settings: OK")
 
 
+def test_wrong_types_get_defaults():
+    with tempfile.TemporaryDirectory() as tmp:
+        config.SETTINGS_PATH = Path(tmp) / "settings.json"
+        s = load({"delay_ms": "800", "auto_start": 1, "censor_volume": True, "builtin_lists": "slurs",
+                  "disabled_lists": [3], "asr_device": "npu", "theme": "pink", "desktop_device": 4, "engine": 2})
+        d = config.Settings()
+        for key in ("delay_ms", "auto_start", "censor_volume", "builtin_lists", "disabled_lists", "asr_device",
+                    "theme", "desktop_device"):
+            assert getattr(s, key) == getattr(d, key), key
+        s = load({"delay_ms": 800, "censor_volume": 1, "check_updates": None, "censor_sound": "a.wav",
+                  "disabled_lists": ["x.txt"], "mute_mode": "beep", "engine": 2})  # all valid: kept
+        assert (s.delay_ms, s.censor_volume, s.check_updates, s.censor_sound, s.disabled_lists, s.mute_mode) == \
+            (800, 1, None, "a.wav", ["x.txt"], "beep")
+    print("settings types: OK")
+
+
 if __name__ == "__main__":
     test_live_engine_defaults()
+    test_wrong_types_get_defaults()

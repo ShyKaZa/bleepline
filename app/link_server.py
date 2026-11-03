@@ -78,6 +78,12 @@ class LinkServer:
         with self._lock:
             return [s.name for s in self._sessions if s.name]
 
+    def shortest_delay_ms(self) -> int | None:
+        """The shortest delay set in a connected OBS filter, or None while none is connected."""
+        with self._lock:
+            delays = [s.delay_ms for s in self._sessions if s.name]
+        return min(delays) if delays else None
+
     def _accept_loop(self):
         while self._listener is not None:
             try:
@@ -103,10 +109,11 @@ class _Session(threading.Thread):
         self.conn.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
         self.name = ""
         self.detector: Detector | None = None
-        self.delay_samples = 0
+        self.delay_ms = self.delay_samples = 0
         self.last_end = 0
         self._next_early = 0
         self._send_lock = threading.Lock()
+        self._close_lock = threading.Lock()
 
     def run(self):
         srv = self.server
@@ -115,14 +122,14 @@ class _Session(threading.Thread):
             if magic not in MAGICS:
                 return
             rate, delay_ms, name_len = struct.unpack("<IIH", _recv_exact(self.conn, 10))
+            self.delay_ms, self.delay_samples = delay_ms, rate * delay_ms // 1000
             self.name = _recv_exact(self.conn, name_len).decode("utf-8", "replace") or "OBS source"
-            self.delay_samples = rate * delay_ms // 1000
             if magic in (b"VGL2", b"VGL3"):
                 mode, beep_hz, volume, sound = srv.censor
                 clip = replacement_clip(mode, rate, beep_hz, volume, sound).astype("<f4")
                 with self._send_lock:
                     self.conn.sendall(struct.pack("<BI", MSG_SOUND, len(clip)) + clip.tobytes())
-            self.detector = Detector(
+            detector = self.detector = Detector(
                 srv.model, rate, srv.pad_before_ms, srv.pad_after_ms,
                 on_mute=self._mute,
                 on_catch=lambda w, late: srv.on_catch and srv.on_catch(self.name, w, late),
@@ -132,7 +139,7 @@ class _Session(threading.Thread):
                 early_mute=srv.early_mute and magic == b"VGL3",  # older plugins can't undo a mute
                 on_tentative=self._early, on_retract=self._undo,
             )
-            self.detector.start()
+            detector.start()
             if srv.on_event:
                 srv.on_event(f"OBS source connected: {self.name} ({rate} Hz, {delay_ms} ms delay)")
             while True:
@@ -144,7 +151,7 @@ class _Session(threading.Thread):
                     return
                 samples = np.frombuffer(_recv_exact(self.conn, n * 4), dtype="<f4")
                 self.last_end = end_index
-                self.detector.feed(samples, end_index)
+                detector.feed(samples, end_index)  # a local: stop() may close the session meanwhile
         except (ConnectionError, OSError):
             pass
         finally:
@@ -179,9 +186,10 @@ class _Session(threading.Thread):
         return self.last_end - self.delay_samples  # where the plugin's delayed output is right now
 
     def close(self):
-        if self.detector is not None:
-            self.detector.stop()
-            self.detector = None
+        with self._close_lock:  # the session's own thread and LinkServer.stop() can both close it
+            detector, self.detector = self.detector, None
+        if detector is not None:
+            detector.stop()
         try:
             self.conn.close()
         except OSError:
