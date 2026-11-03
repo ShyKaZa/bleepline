@@ -1,8 +1,12 @@
 # Bleepline built-in list: hateful slurs (racist, homophobic, transphobic, ableist). On by default.
-# Some also have harmless meanings ("chink in the armor"): add those to the allow list if you need them.
+# Some also have harmless meanings ("chink in the armor", "dike" for a flood bank): add those to the allow list if you need them.
+# Entries right after a slur (packy, sandiger, nager, dike, tranies...) are how the speech model often writes it.
 nigger*
 nigga*
+nager
 sandnigger*
+sandiger*
+sandigger*
 coon
 coons
 chink
@@ -11,11 +15,14 @@ gook*
 spic
 spics
 spick
+spicks
 wetback*
 beaner*
 kike*
 paki
 pakis
+packy*
+packies
 raghead*
 towelhead*
 jap
@@ -26,11 +33,15 @@ fags
 faggy
 dyke
 dykes
+dike
+dikes
 tranny
 trannies
+tranies
 shemale*
 retard
 retards
 retarded
 tard
+tards
 spaz

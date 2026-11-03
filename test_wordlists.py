@@ -30,6 +30,11 @@ def test_builtin_lists():
     swears = ("fuck", "Fucking,", "motherfucker", "shit", "bullshit", "bitches", "asshole", "cunt", "dick", "porn",
               "blowjob", "faggot", "retarded", "bitch's", "fuckin'")
     assert not [w for w in swears if not m.match_word(w)], [w for w in swears if not m.match_word(w)]
+    # how the speech model writes some slurs (research/keyword_spotter/README.md), and look-alikes left alone
+    misheard = ("Packy", "packy's", "packies", "sandiger", "sandiggers", "nager", "dikes", "tranies", "spicks", "tards")
+    assert not [w for w in misheard if not m.match_word(w)], [w for w in misheard if not m.match_word(w)]
+    assert not [w for w in ("pack", "package", "packing", "sand", "dice", "trainees", "spikes", "tart")
+                if m.match_word(w)]
     assert (1, 3, "blow job") in m.find("a blow job".split())
     # everyday game and stream talk that the old default (better_profanity's text-chat list) muted
     harmless = ("duck", "hello", "class", "assume", "assassin", "shot", "a", "sh", "shi", "sht", "i", "he", "kill",

@@ -412,3 +412,57 @@ starts a median 180 ms late, so its notes missed 35 of 57 leaks at 500 ms; base.
 (a little was heard) and two say "1 ms". The early ones come from the model leaving out a comma and stretching the
 next word back over the pause; pauses inside real words ("fucking") make cutting at pauses miss real leaks. So the
 note stays as it is, and the app now says to raise the delay if it keeps happening rather than after one note.
+
+### Slurs with the 1.3 engine (2026-11-03)
+
+`slur_test.py` with base.en on GPU + CPU and checks every 50 ms (the app's default since 1.3) in place of tiny.en:
+
+| | Whole-clip base.en writes a listed word | Fully muted at 400 ms | 600 ms | 800 ms | 1000 ms |
+|---|---|---|---|---|---|
+| Slurs (126 sentences) | 55% | 26% | 48% | 58% | 65% |
+| Swear words (78 sentences) | 85% | 55% | 79% | 90% | 90% |
+
+1.2's engine fully muted 35% of slurs at 600 ms. The gap to swear words is recognition: the model writes the slur
+at all in only about half the sentences. Three ways to close it were tried; one is in the app.
+
+**Word hints (dropped).** The slurs, passed to the decoder as earlier text (`<|startofprev|>` plus the list, as
+faster-whisper's `hotwords` do), make it write them far more often. Decoding 77 slur sentences whole, it wrote the
+slur in 56 instead of 30 with the base forms (78 tokens), and the same with every form (108 tokens). On real speech
+it fails (87 swearing clips with 101 swear words, 120 everyday clips, 29 min):
+
+| | check (median) | fully muted at 400 / 500 / 600 ms | innocent words cut at 500 ms | false mutes/min at 500 ms |
+|---|---|---|---|---|
+| today | 28 ms | 51 / 68 / 79 | 25 | 0.10 |
+| with the hint | 72 ms | 23 / 38 / 54 | 42 | 1.21 |
+
+In quiet or unclear stretches the model copies the hint list into the transcript ("tard, tard."), so 38 of the
+120 everyday clips got a banned word against 3. The longer prompt and output also nearly triple each check, which
+costs catches. A shorter list would leak the same way.
+
+**Early mute for slurs only (dropped).** The app's early mute, but tentative mutes only for words that start like
+a slur, simulated on recorded checks (the scratch `whisper_diag.py` method). On 168 fresh slur sentences it fully
+mutes 9 / 30 / 58 / 77 at 300 / 400 / 500 / 600 ms against 9 / 30 / 57 / 77 without it. Whisper doesn't write half
+a slur at the window edge: it writes a whole everyday word. On real everyday talk (base.en GPU cache, 76.4 min)
+false mutes go from 0.05-0.07 to 0.27-0.43 per minute (early mute for all words: 0.67-1.24).
+
+**Spellings the model writes (in the app).** `slur_record.py` records the live checks on fresh sentences with every
+check's words kept; `alias_eval.py` adds candidate spellings and rebuilds the mutes offline, on those sentences and
+on real speech (base.en GPU cache: 87 swearing clips, 323 everyday clips, 76.4 min, every word kept), and looks
+them up in the human transcripts of all 1,077 everyday clips:
+
+    $PY slur_record.py data/slur_rec31.pkl 31
+    $PY alias_eval.py data/slur_rec31.pkl packy=paki sandiger=sandnigger ...
+
+Candidates came from the slur test and a first recorded set (seed 23): spellings written for a slur in more than
+one sentence that never occur in real everyday talk. On a second, fresh set (seed 31, 176 slur sentences):
+
+| | 400 ms | 500 ms | 600 ms | 800 ms | false mutes/min, everyday talk | innocent words cut, swearing clips |
+|---|---|---|---|---|---|---|
+| list before | 26 | 47 | 82 | 102 | 0.05 | 15 |
+| + the spellings | 30 | 53 | 93 | 116 | 0.05 | 15 |
+
+None of the spellings fires anywhere in the real speech or appears in the human transcripts. Added to `slurs.txt`:
+nager, sandiger\*, sandigger\*, spicks, packy\*, packies, dike, dikes, tranies, tards ("dike" is also a flood
+bank, so the list's header says so; spicks and tards are plain forms that were missing). The rest of the misses are
+written as common words ("good" and "cook" for gook, "being" for beaner, "trainees" for trannies, "like" for
+dykes), which no list can take. Only a model that has learned these words would write them.
