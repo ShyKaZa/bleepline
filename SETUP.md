@@ -44,7 +44,8 @@ clean only the copy that goes to viewers.
 
 1. Setup tab → **Install everything** (or **OBS plugin → Install**). This copies the plugin to
    `C:\ProgramData\obs-studio\plugins\bleepline-filter\bin\64bit\`, where OBS 30–33 load it.
-   Restart OBS.
+   Restart OBS. When a Bleepline update brings a newer plugin, the Setup tab says so and offers
+   **Update** (close OBS first): the installer itself never touches OBS's folder.
 2. In OBS, right-click an audio source (Desktop Audio, your mic, a Discord or game Application Audio
    Capture) → **Filters** → **+** → **Bleepline (profanity filter)**. Set the delay and
    silence/beep there (default 500 ms, silence).
@@ -283,7 +284,7 @@ headers. Run `build_obs_plugin.py` before `build.py` so the exe ships the plugin
 | `python integration_test.py [delay] [model] [split\|cpu\|gpu]` | live engine end to end with real-time pacing (default: base.en on GPU + CPU) |
 | `python test_link.py [delay] [model]` | OBS link protocol, with a Python stand-in for the plugin |
 | `python test_file_cleaner.py [model]` | builds a test video, cleans it, verifies video untouched and words muted |
-| `python test_maintenance.py` | storage report and removal (models, GPU runtime, OBS plugin, everything) on a temp folder |
+| `python test_maintenance.py` | storage report and removal (models, GPU runtime, OBS plugin, everything) and OBS plugin updates, on a temp folder |
 | `python test_wordlists.py` | matching rules, built-in lists (swears caught, everyday words and contractions left alone), file import (incl. old Windows-1250 files), language download, allow list |
 | `python test_censor_sound.py [model]` | censor sound restart/loop logic, custom sound file in a cleaned recording |
 | `python test_replay.py [model] [delays...]` | how much of 24 swear words in 12 clips the live detector mutes at each delay, with its real timing |

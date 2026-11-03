@@ -418,7 +418,10 @@ class BleeplineApp(tk.Tk):
         return next((n for n in self.outputs if CABLE_PLAYBACK in n), None)
 
     def _update_mode_status(self):
-        if st.obs_plugin_installed():
+        if st.obs_plugin_outdated():
+            self.obs_status.config(text="The OBS plugin is from an older version - update it in the Setup tab.",
+                                   foreground=AMBER)
+        elif st.obs_plugin_installed():
             self.obs_status.config(text="OBS plugin installed.", foreground=GREEN)
         elif st.bundled_obs_plugin():
             self.obs_status.config(text="OBS plugin not installed yet - install it in the Setup tab.",
@@ -1136,7 +1139,11 @@ class BleeplineApp(tk.Tk):
                                   "None yet - Install everything downloads tiny.en and base.en.",
                                   foreground=GREEN if installed else AMBER)
 
-        if st.obs_plugin_installed():
+        outdated = st.obs_plugin_outdated()
+        if outdated:
+            self.obs_plugin_status.config(text="An older version is installed. Close OBS, then click Update.",
+                                          foreground=AMBER)
+        elif st.obs_plugin_installed():
             self.obs_plugin_status.config(text="Installed. Restart OBS if it was open.", foreground=GREEN)
         elif not st.bundled_obs_plugin():
             self.obs_plugin_status.config(text="Not included in this build.", foreground=GREY)
@@ -1144,7 +1151,9 @@ class BleeplineApp(tk.Tk):
             note = "" if st.obs_installed() else " (OBS not found on this PC, installing anyway is fine)"
             self.obs_plugin_status.config(text="Not installed." + note, foreground=AMBER)
         self.obs_plugin_btn.config(
-            state="normal" if idle and st.bundled_obs_plugin() and not st.obs_plugin_installed() else "disabled")
+            text="Update" if outdated else "Install",
+            state="normal" if idle and st.bundled_obs_plugin() and (outdated or not st.obs_plugin_installed())
+            else "disabled")
 
         if missing:
             self.cable_status.config(text="Can be checked once the Python packages are installed.", foreground=GREY)
@@ -1182,7 +1191,8 @@ class BleeplineApp(tk.Tk):
             for name in st.DEFAULT_DOWNLOADS:
                 if not st.model_installed(name):
                     st.download_model(name, self._progress_async, self._setup_log_async)
-            if st.bundled_obs_plugin() and not st.obs_plugin_installed() and (mode == "obs" or st.obs_installed()):
+            if st.bundled_obs_plugin() and (st.obs_plugin_outdated() or not st.obs_plugin_installed()) and (
+                    mode == "obs" or st.obs_installed()):
                 st.install_obs_plugin(self._setup_log_async)
             self._setup_log_async("All downloads complete.")
 
@@ -1518,6 +1528,8 @@ class BleeplineApp(tk.Tk):
             return
         if mode == "obs" and not st.obs_plugin_installed():
             self._log("Note: the OBS plugin isn't installed yet, so OBS can't connect (Setup tab).")
+        elif mode == "obs" and st.obs_plugin_outdated():
+            self._log("Note: the OBS plugin is from an older version: update it in the Setup tab (close OBS first).")
         model = self._live_name = self.live_model_var.get()  # can be a stand-in for s.live_model
         self._warn_language_mismatch(model, self.log_text)
         matcher = self._build_matcher()

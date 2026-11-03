@@ -29,6 +29,16 @@ def test_storage_and_removal():
         maintenance.SOUNDS_DIR = data / "sounds"
         st.obs_plugin_target = lambda: plugin
 
+        bundled = Path(tmp) / "bundled.dll"  # the plugin this version ships
+        st.bundled_obs_plugin = lambda: bundled
+        bundled.write_bytes(b"x" * 50)
+        assert st.obs_plugin_installed() and not st.obs_plugin_outdated()
+        bundled.write_bytes(b"y" * 50)  # same size, other bytes: an older plugin is installed
+        assert st.obs_plugin_outdated()
+        st.install_obs_plugin(lambda t: None)
+        assert not st.obs_plugin_outdated()
+        plugin.write_bytes(b"x" * 50)
+
         items = {k: s for k, _, s in maintenance.storage_items()}
         assert items == {"model:tiny.en": 1000, "model:base.en": 2000, "gpu": 3000, "obs": 50, "settings": 15}, items
 
@@ -40,7 +50,7 @@ def test_storage_and_removal():
         maintenance.remove_all_downloads()
         assert maintenance.storage_items() == []
         assert data.exists() and not any(data.iterdir()), list(data.iterdir())
-        print("PASS storage report, single removal, OBS plugin removal, remove everything")
+        print("PASS storage report, single removal, OBS plugin update and removal, remove everything")
 
 
 if __name__ == "__main__":

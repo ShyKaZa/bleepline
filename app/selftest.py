@@ -31,7 +31,7 @@ def run() -> int:
 
         lines.append(f"recording cleaner: PyAV {av.__version__}")
         lines.append(f"OBS plugin bundled: {st.bundled_obs_plugin() is not None} | "
-                     f"installed in OBS: {st.obs_plugin_installed()}")
+                     f"installed in OBS: {st.obs_plugin_installed()} | older version: {st.obs_plugin_outdated()}")
 
         from . import wordlists
         from .detector import load_model

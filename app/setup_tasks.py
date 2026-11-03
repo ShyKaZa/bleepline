@@ -236,13 +236,23 @@ def obs_plugin_installed() -> bool:
     return obs_plugin_target().exists()
 
 
+def obs_plugin_outdated() -> bool:
+    """Installed, but not the plugin this version bundles. Setup never touches OBS's folder, so plugin updates go
+    through the app (Setup tab)."""
+    src, target = bundled_obs_plugin(), obs_plugin_target()
+    return src is not None and target.exists() and src.read_bytes() != target.read_bytes()  # ~200 KB
+
+
 def install_obs_plugin(log) -> None:
     src = bundled_obs_plugin()
     if src is None:
         raise RuntimeError("This build doesn't include the OBS plugin.")
     target = obs_plugin_target()
     target.parent.mkdir(parents=True, exist_ok=True)
-    shutil.copy2(src, target)
+    try:
+        shutil.copy2(src, target)
+    except PermissionError:
+        raise RuntimeError("OBS has the plugin open: close OBS, then try again.") from None
     log(f"OBS plugin installed to {target}. Restart OBS to load it.")
     if legacy_obs_plugin_dir().exists():
         shutil.rmtree(legacy_obs_plugin_dir(), ignore_errors=True)
